@@ -17,6 +17,14 @@ blocky_db: blocky
 # weekly partitions are dropped). The daily timer calls it without arguments.
 blocky_partition_premake: 4
 blocky_partition_retention: 1 year
+# Storage parameters set on every partition (a partitioned parent cannot carry
+# them). Keys are PostgreSQL table storage parameters; {} sets none.
+blocky_partition_reloptions:
+  autovacuum_vacuum_insert_scale_factor: 0.05
+  autovacuum_vacuum_scale_factor: 0.02
+  autovacuum_analyze_scale_factor: 0.01
+# Trigram index on question_name for LIKE '%...%' searches (needs pg_trgm).
+blocky_query_log_trgm: true
 # LIKE patterns (on question_name) whose query log entries are deleted, e.g.
 # "%example%" (substring) or "%example.org" (domain and subdomains). Private, so
 # they live in host_vars/<host>/vault.yml. Empty list: no purge SQL, timer off.

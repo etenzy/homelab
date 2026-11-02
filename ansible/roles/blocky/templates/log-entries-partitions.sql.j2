@@ -1,6 +1,8 @@
 -- {{ ansible_managed }}
 -- Weekly partitions for blocky's query log (log_entries). Creates the current
--- week plus p_premake weeks ahead and drops partitions older than p_retention.
+-- week plus p_premake weeks ahead, drops partitions older than p_retention and
+-- applies the storage parameters to every partition (a partitioned parent
+-- cannot carry them itself).
 -- Owned by blocky so it can create and drop partitions of blocky's table.
 SET ROLE blocky;
 
@@ -14,6 +16,7 @@ DECLARE
     v_week   date;
     v_part   text;
     v_cutoff date := (now() - p_retention)::date;
+    v_opts   text := {% if blocky_partition_reloptions %}'{% for k, v in blocky_partition_reloptions.items() %}{{ k }} = {{ v }}{{ ', ' if not loop.last }}{% endfor %}'{% else %}NULL{% endif %};
     r        record;
 BEGIN
     -- Current week plus p_premake weeks ahead.
@@ -45,6 +48,18 @@ BEGIN
             RAISE NOTICE 'dropped: % (up to %)', r.part, r.upper_bound::date;
         END IF;
     END LOOP;
+
+    -- Storage parameters (autovacuum) on all remaining partitions, incl. default.
+    IF v_opts IS NOT NULL THEN
+        FOR r IN
+            SELECT c.oid::regclass::text AS part
+            FROM pg_class c
+            JOIN pg_inherits i ON i.inhrelid = c.oid
+            WHERE i.inhparent = 'log_entries'::regclass
+        LOOP
+            EXECUTE format('ALTER TABLE %s SET (%s)', r.part, v_opts);
+        END LOOP;
+    END IF;
 END;
 $$;
 

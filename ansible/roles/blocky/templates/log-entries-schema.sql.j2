@@ -1,0 +1,43 @@
+-- {{ ansible_managed }}
+-- Initial, range-partitioned query log table for blocky. Only applied when
+-- log_entries does not exist yet (fresh host, before blocky's first start):
+-- blocky's AutoMigrate would otherwise create an unpartitioned table.
+-- Columns follow blocky's logEntry model (querylog/database_writer.go) plus the
+-- id column blocky adds; the primary key has to include the partition key.
+-- Partitions are created by maintain_log_entries_partitions().
+SET ROLE blocky;
+
+CREATE SEQUENCE log_entries_id_seq;
+
+CREATE TABLE log_entries (
+    request_ts     timestamptz NOT NULL,
+    client_ip      text,
+    client_name    text,
+    duration_ms    bigint,
+    reason         text,
+    response_type  text,
+    question_type  text,
+    question_name  text,
+    effective_tldp text,
+    answer         text,
+    response_code  text,
+    hostname       text,
+    id             bigint NOT NULL DEFAULT nextval('log_entries_id_seq'),
+    PRIMARY KEY (id, request_ts)
+) PARTITION BY RANGE (request_ts);
+
+ALTER SEQUENCE log_entries_id_seq OWNED BY log_entries.id;
+
+CREATE INDEX idx_log_entries_request_ts ON log_entries USING btree (request_ts);
+CREATE INDEX idx_log_entries_request_ts_brin ON log_entries USING brin (request_ts) WITH (pages_per_range = 32);
+CREATE INDEX idx_log_entries_client_name ON log_entries USING btree (client_name);
+CREATE INDEX idx_log_entries_question_type ON log_entries USING btree (question_type);
+CREATE INDEX idx_log_entries_response_type ON log_entries USING btree (response_type);
+{% if blocky_query_log_trgm %}
+-- Needs pg_trgm in the database (postgresql_databases[].extensions).
+CREATE INDEX idx_log_entries_question_name_trgm ON log_entries USING gin (question_name gin_trgm_ops);
+{% endif %}
+
+CREATE TABLE log_entries_default PARTITION OF log_entries DEFAULT;
+
+RESET ROLE;

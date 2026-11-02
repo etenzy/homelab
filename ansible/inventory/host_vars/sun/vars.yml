@@ -13,7 +13,7 @@
 postgresql_databases:
   - name: blocky
     owner: blocky          # already the owner (checked 2026-11-01)
-    extensions: [pg_stat_statements]
+    extensions: [pg_stat_statements, pg_trgm]
 
 # Internal VLANs for admin access. Guest (80) and Blackbox (90) deliberately left out.
 pg_admin_networks:

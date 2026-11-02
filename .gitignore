@@ -1,0 +1,15 @@
+# macOS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# Ansible
+*.retry
+.ansible/
+ansible/collections/ansible_collections/
+ansible/.vault_pass*
+*.vault-password
+
+# Python venv
+.venv/
+__pycache__/

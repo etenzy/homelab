@@ -107,51 +107,20 @@
     state: absent
   when: blocky_query_log_postgres and blocky_purge_patterns | length == 0
 
-- name: Partition maintenance function (SQL file)
-  ansible.builtin.template:
-    src: log-entries-partitions.sql.j2
-    dest: /usr/local/lib/blocky/log-entries-partitions.sql
-    owner: root
-    group: root
-    mode: "0644"
-  register: blocky_partition_sql
+- name: Log table partitions
+  ansible.builtin.include_tasks:
+    file: partitions.yml
+    apply:
+      tags: [blocky_partitions]
+  tags: [blocky_partitions]
   when: blocky_query_log_postgres
 
-- name: Look up partition maintenance function
-  community.postgresql.postgresql_query:
-    login_db: "{{ blocky_db }}"
-    login_unix_socket: /run/postgresql
-    query: >-
-      SELECT to_regprocedure('public.maintain_log_entries_partitions(integer, interval)')
-      IS NOT NULL AS present
-  become: true
-  become_user: postgres
-  check_mode: false
-  register: blocky_partition_fn
-  when: blocky_query_log_postgres
-
-- name: Create or update partition maintenance function
-  community.postgresql.postgresql_script:
-    login_db: "{{ blocky_db }}"
-    login_unix_socket: /run/postgresql
-    path: /usr/local/lib/blocky/log-entries-partitions.sql
-  become: true
-  become_user: postgres
-  # postgresql_script has no check mode support: skipped in --check runs.
-  when:
-    - blocky_query_log_postgres
-    - blocky_partition_sql is changed or not blocky_partition_fn.query_result[0].present
-
-- name: Maintenance units and timers
+- name: Purge unit and timer
   ansible.builtin.template:
     src: "{{ item }}.j2"
     dest: /etc/systemd/system/{{ item }}
     mode: "0644"
-  loop:
-    - blocky-partitions.service
-    - blocky-partitions.timer
-    - blocky-purge-domains.service
-    - blocky-purge-domains.timer
+  loop: [blocky-purge-domains.service, blocky-purge-domains.timer]
   when: blocky_query_log_postgres
 
 - name: Run handlers now
@@ -165,18 +134,15 @@
   # Check mode: units/binaries this run would create do not exist yet.
   ignore_errors: "{{ ansible_check_mode }}"
 
-- name: Maintenance timers are active
+- name: Purge timer is active
   ansible.builtin.systemd_service:
-    name: "{{ item }}"
+    name: blocky-purge-domains.timer
     enabled: true
     state: started
     daemon_reload: true
   # Check mode: units/binaries this run would create do not exist yet.
   ignore_errors: "{{ ansible_check_mode }}"
-  loop: [blocky-partitions.timer, blocky-purge-domains.timer]
-  when:
-    - blocky_query_log_postgres
-    - item != 'blocky-purge-domains.timer' or blocky_purge_patterns | length > 0
+  when: blocky_query_log_postgres and blocky_purge_patterns | length > 0
 
 - name: Purge timer is off without patterns
   ansible.builtin.systemd_service:

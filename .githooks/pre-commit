@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Refuses commits that contain unencrypted secrets: every vault.yml plus the
+# patterns in .secret-files must start with $ANSIBLE_VAULT in the index.
+# Enable once per clone:  git config core.hooksPath .githooks
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+patterns=('*/vault.yml' 'vault.yml')
+if [[ -f "$root/.secret-files" ]]; then
+  while IFS= read -r line; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    patterns+=("$line")
+  done < "$root/.secret-files"
+fi
+
+bad=()
+while IFS= read -r -d '' file; do
+  for pattern in "${patterns[@]}"; do
+    # shellcheck disable=SC2053  # pattern match on purpose
+    if [[ "$file" == $pattern ]]; then
+      # shellcheck disable=SC2016  # literal vault header
+      if [[ "$(git show ":$file" | head -c 14)" != '$ANSIBLE_VAULT' ]]; then
+        bad+=("$file")
+      fi
+      break
+    fi
+  done
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+if (( ${#bad[@]} > 0 )); then
+  echo "pre-commit: unencrypted secrets staged:" >&2
+  printf '  %s\n' "${bad[@]}" >&2
+  echo "Encrypt them (ansible-vault encrypt <file>), git add again, then commit." >&2
+  exit 1
+fi

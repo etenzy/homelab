@@ -178,6 +178,7 @@ hochsetzen und die Rolle erneut laufen lassen. Docker CE kommt über apt und ist
 ansible-playbook site.yml --ask-vault-pass                        # alle Hosts
 ansible-playbook site.yml --limit mars --ask-vault-pass           # ein Host
 ansible-playbook site.yml --tags traefik --ask-vault-pass         # eine Rolle auf allen ihren Hosts
+ansible-playbook site.yml --tags blocky_partitions --ask-vault-pass # nur die log_entries-Partitionierung
 ansible-playbook site.yml --check --diff --ask-vault-pass         # Probelauf
 ansible-playbook site.yml --limit mars -k -K --ask-vault-pass     # erster Lauf, noch mit Passwort
 ```
@@ -346,9 +347,10 @@ nicht gelaufen.
   Hosts außer `chrony_servers` `systemd-timesyncd` mit `NTP=time.home.rdl.sh` (Drop-in
   `timesyncd.conf.d/homelab.conf`, Fallback: Debian-Pool). Die Pakete schließen sich gegenseitig
   aus, ein vorhandenes chrony wird dabei ersetzt. sun bekommt chrony nur über `chrony_server`.
-- **PostgreSQL-Schema** (Datenbank `blocky`, `log_entries`, `maintain_log_entries_partitions`)
-  verwaltet Ansible nicht. Es existiert auf sun und ist Datenbankzustand, kein Host-Setup.
-  Die Rollen-Rechte setzt Ansible dagegen idempotent.
+- **Partitionierung von `log_entries`** steckt in `roles/blocky/tasks/partitions.yml` (Tag
+  `blocky_partitions`): Funktion `maintain_log_entries_partitions` samt Timer, autovacuum-Werte
+  auf allen Partitionen und auf frischen Hosts die partitionierte Tabelle. Eine bestehende
+  Tabelle fasst Ansible nie an; die Umstellung einer unpartitionierten Tabelle bleibt manuell.
 - **PostgreSQL-Passwörter** sind optional im Vault. Ohne Vault-Eintrag behalten die Rollen ihr
   bestehendes Passwort.
 
