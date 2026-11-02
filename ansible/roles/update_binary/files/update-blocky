@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+#
+# update-blocky — auto-updater for the 0xERR0R/blocky DNS server binary.
+#
+#   Thin wrapper around update-binary.sh. blocky-specific: validates the
+#   existing config against the NEW binary before installing, restores file
+#   capabilities (port 53 as non-root) and uses `blocky healthcheck` (a real
+#   DNS query) as the health check.
+#
+#   Usage:
+#     update-blocky                    update if a newer release exists
+#     update-blocky --check            report only, change nothing
+#     update-blocky --dry-run          download + verify + validate, install nothing
+#     update-blocky --force            reinstall even if already current
+#     update-blocky --version 0.34.0   pin a specific version
+#     update-blocky --no-validate      skip the config pre-flight (not recommended)
+#     update-blocky --no-restart       install only, leave the unit alone
+#
+#   Exit codes: 0 ok / nothing to do, 1 error, 2 update available (--check only)
+#
+# NAME, CHECKSUMS and friends are read by update-binary.sh.
+# shellcheck disable=SC2034
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. "${UPDATE_BINARY_LIB:-/usr/local/lib/update-binary/update-binary.sh}"
+
+NAME=blocky
+REPO="${REPO:-0xERR0R/blocky}"
+CHECKSUMS=blocky_checksums.txt
+CONFIG="${CONFIG:-/etc/blocky/config.yml}"
+DNS_BIND_IP="${DNS_BIND_IP:-127.0.0.1}"
+DNS_PORT="${DNS_PORT:-53}"
+HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-45}"
+HEALTH_INTERVAL="${HEALTH_INTERVAL:-3}"
+DO_VALIDATE=1
+
+# blocky is built with GoReleaser, so the asset names use GOARCH-ish labels that
+# differ from the Prometheus exporters: "x86_64" rather than "amd64", the mips
+# variants carry a "_softfloat" suffix, and there is no 386, ppc64le or riscv64
+# build at all.
+map_arch() {
+  local m; m="$(uname -m)"
+  case "$m" in
+    x86_64|amd64)  echo "x86_64"             ;;
+    aarch64|arm64) echo "arm64"              ;;
+    armv7l)        echo "armv7"              ;;
+    armv6l)        echo "armv6"              ;;
+    mips64el)      echo "mips64le_softfloat" ;;
+    mips64)        echo "mips64_softfloat"   ;;
+    mipsel)        echo "mipsle_softfloat"   ;;
+    mips)          echo "mips_softfloat"     ;;
+    i386|i686|armv5*|ppc64le|riscv64)
+      die "upstream publishes no Linux build for ${m}; use the container image or build from source" ;;
+    *)             die "unsupported architecture: $m" ;;
+  esac
+}
+
+asset_name()   { echo "blocky_v${1}_Linux_${2}.tar.gz"; }
+# The archive has no top-level directory: LICENSE, README.md and the binary sit at the root.
+asset_binary() { echo "blocky"; }
+
+# blocky has no --version flag; it is a subcommand, and the output looks like
+#   blocky
+#   Version: v0.35.0
+#   Build time: ...
+binary_version() { "$1" version 2>&1 | parse_vversion; }
+
+# blocky's own healthcheck performs a real DNS query against the running server.
+# That beats an HTTP probe: the metrics endpoint is optional in blocky's config,
+# and answering DNS is the actual job.
+health_check() { "$BIN_PATH" healthcheck --bindip "$DNS_BIND_IP" --port "$DNS_PORT" >/dev/null 2>&1; }
+
+extra_arg() {
+  case "$1" in
+    --no-validate) DO_VALIDATE=0 ;;
+    *)             return 1 ;;
+  esac
+}
+
+# blocky refuses to start on an invalid config, and releases do occasionally
+# rename or drop config keys. Validating the EXISTING config with the NEW binary
+# turns "DNS is down and the unit crash-loops" into "nothing happened".
+preflight() {
+  local new_bin="$1" target="$2" out
+  if (( ! DO_VALIDATE )); then
+    warn "--no-validate given; installing without checking the config against v${target}"
+    return 0
+  fi
+  if [[ ! -r "$CONFIG" ]]; then
+    warn "config ${CONFIG} not readable — skipping the pre-flight validation"
+    return 0
+  fi
+  info "validating ${CONFIG} against v${target}"
+  if ! out="$("$new_bin" validate -c "$CONFIG" 2>&1)"; then
+    printf '%s\n' "$out" >&2
+    die "v${target} rejects the current configuration — nothing was installed. Fix the config, or pin the working version with --version ${CURRENT:-<old>}."
+  fi
+  info "configuration accepted by v${target}"
+}
+
+update_binary_main "$@"

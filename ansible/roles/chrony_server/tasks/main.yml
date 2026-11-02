@@ -1,0 +1,53 @@
+---
+- name: Chrony
+  ansible.builtin.apt:
+    name: chrony
+
+- name: NTS sources
+  ansible.builtin.template:
+    src: ptb.sources.j2
+    dest: /etc/chrony/sources.d/ptb.sources
+    mode: "0644"
+  notify: Restart chrony
+
+- name: Server configuration
+  ansible.builtin.template:
+    src: server.conf.j2
+    dest: /etc/chrony/conf.d/server.conf
+    mode: "0644"
+  notify: Restart chrony
+
+- name: Chrony is running
+  ansible.builtin.systemd_service:
+    name: chrony
+    enabled: true
+    state: started
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# --- chrony_exporter ------------------------------------------------------------
+- name: Unit chrony_exporter
+  ansible.builtin.template:
+    src: chrony_exporter.service.j2
+    dest: /etc/systemd/system/chrony_exporter.service
+    mode: "0644"
+  notify: Restart chrony_exporter
+
+- name: Binary and updater for chrony_exporter
+  ansible.builtin.include_role:
+    name: update_binary
+  vars:
+    update_binary_tool:
+      name: chrony_exporter
+      repo: SuperQ/chrony_exporter
+
+- name: Run handlers now
+  ansible.builtin.meta: flush_handlers
+
+- name: Service chrony_exporter is running
+  ansible.builtin.systemd_service:
+    name: chrony_exporter
+    enabled: true
+    state: started
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"

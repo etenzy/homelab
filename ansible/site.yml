@@ -1,0 +1,65 @@
+---
+# Homelab: one playbook for all hosts. Roles are assigned via inventory groups.
+#   ansible-playbook site.yml --limit mars        # one host
+#   ansible-playbook site.yml --tags traefik      # one role on all its hosts
+- name: Base system
+  hosts: debian_hosts
+  become: true
+  roles:
+    - { role: base, tags: [base] }
+    - { role: admin, tags: [admin] }
+
+- name: Node exporter as binary (hosts without Docker)
+  hosts: debian_hosts:!docker_hosts
+  become: true
+  roles:
+    - { role: node_exporter, tags: [node_exporter, monitoring] }
+
+- name: NTP server
+  hosts: chrony_servers
+  become: true
+  roles:
+    - { role: chrony_server, tags: [chrony] }
+
+- name: PostgreSQL
+  hosts: postgresql_hosts
+  become: true
+  roles:
+    - { role: postgresql, tags: [postgresql] }
+
+- name: Blocky DNS
+  hosts: blocky_hosts
+  become: true
+  roles:
+    - { role: blocky, tags: [blocky] }
+
+- name: Valkey
+  hosts: valkey_hosts
+  become: true
+  roles:
+    - { role: valkey, tags: [valkey] }
+
+- name: NVIDIA GPU
+  hosts: gpu_hosts
+  become: true
+  roles:
+    - { role: nvidia, tags: [nvidia] }
+
+- name: Docker and exporters
+  hosts: docker_hosts
+  become: true
+  roles:
+    - { role: docker, tags: [docker] }
+    - { role: monitoring, tags: [monitoring] }
+
+- name: Traefik
+  hosts: traefik_hosts
+  become: true
+  roles:
+    - { role: traefik, tags: [traefik] }
+
+- name: Jellyfin
+  hosts: jellyfin_hosts
+  become: true
+  roles:
+    - { role: jellyfin, tags: [jellyfin] }

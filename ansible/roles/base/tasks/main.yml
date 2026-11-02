@@ -1,0 +1,93 @@
+---
+- name: Require a supported Debian release
+  ansible.builtin.assert:
+    that: ansible_facts['distribution'] == "Debian" and ansible_facts['distribution_major_version'] in base_debian_versions
+    fail_msg: >-
+      Expected Debian {{ base_debian_versions | join(' or ') }}, found
+      {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+
+- name: Network
+  ansible.builtin.include_tasks: network.yml
+  when: network_manage | bool
+
+- name: Hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+# NVIDIA driver and firmware live in contrib/non-free(-firmware).
+- name: APT sources (deb822)
+  ansible.builtin.template:
+    src: debian.sources.j2
+    dest: /etc/apt/sources.list.d/debian.sources
+    mode: "0644"
+  register: base_sources
+
+- name: Empty the old sources.list (its content is in debian.sources)
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list
+    content: "# Managed via /etc/apt/sources.list.d/debian.sources (Ansible)\n"
+    mode: "0644"
+  register: base_sources_list
+
+# Services bind to the host's own addresses (host_addresses). At boot the static
+# IPv6 can still be in DAD; without nonlocal bind PostgreSQL or chrony would skip it.
+- name: Allow binding to addresses that are not up yet
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_file: /etc/sysctl.d/60-nonlocal-bind.conf
+  loop: [net.ipv4.ip_nonlocal_bind, net.ipv6.ip_nonlocal_bind]
+
+- name: Packages
+  ansible.builtin.apt:
+    name: "{{ base_packages }}"
+    update_cache: "{{ base_sources.changed or base_sources_list.changed }}"
+    cache_valid_time: 3600
+
+- name: Install security updates automatically (no auto reboot)
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+
+# --- Time sync -------------------------------------------------------------------
+# Clients use systemd-timesyncd against time.home.rdl.sh (sun). chrony is only
+# installed where it serves time (chrony_servers, role chrony_server); the two
+# packages conflict, so timesyncd is left alone there.
+- name: Time sync client
+  when: "'chrony_servers' not in group_names"
+  block:
+    - name: Package systemd-timesyncd (replaces chrony if present)
+      ansible.builtin.apt:
+        name: systemd-timesyncd
+
+    - name: Drop-in directory for timesyncd
+      ansible.builtin.file:
+        path: /etc/systemd/timesyncd.conf.d
+        state: directory
+        mode: "0755"
+
+    # Without NTP= timesyncd uses the compiled-in Debian pool (FallbackNTP).
+    - name: Home network time servers
+      ansible.builtin.copy:
+        dest: /etc/systemd/timesyncd.conf.d/homelab.conf
+        content: |
+          # {{ ansible_managed }}
+          [Time]
+          NTP={{ ntp_servers | join(' ') }}
+        mode: "0644"
+      notify: Restart timesyncd
+
+    - name: Service systemd-timesyncd is running
+      ansible.builtin.systemd_service:
+        name: systemd-timesyncd
+        enabled: true
+        state: started
+      # Check mode: the package may not be installed yet.
+      ignore_errors: "{{ ansible_check_mode }}"

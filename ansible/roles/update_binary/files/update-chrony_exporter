@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+#
+# update-chrony_exporter — auto-updater for the SuperQ/chrony_exporter binary.
+#
+#   Thin wrapper around update-binary.sh. Health = /metrics exposes chrony_up.
+#
+#   Usage:
+#     update-chrony_exporter                    update if a newer release exists
+#     update-chrony_exporter --check            report only, change nothing
+#     update-chrony_exporter --dry-run          do everything except install/restart
+#     update-chrony_exporter --force            reinstall even if already current
+#     update-chrony_exporter --version 0.13.3   pin a specific version
+#     update-chrony_exporter --no-restart       install only, leave the unit alone
+#
+#   Exit codes: 0 ok / nothing to do, 1 error, 2 update available (--check only)
+#
+# NAME, CHECKSUMS and friends are read by update-binary.sh.
+# shellcheck disable=SC2034
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. "${UPDATE_BINARY_LIB:-/usr/local/lib/update-binary/update-binary.sh}"
+
+NAME=chrony_exporter
+REPO="${REPO:-SuperQ/chrony_exporter}"
+CHECKSUMS=sha256sums.txt
+METRICS_URL="${METRICS_URL:-http://127.0.0.1:9123/metrics}"
+
+map_arch() {
+  local m; m="$(uname -m)"
+  case "$m" in
+    x86_64|amd64)  echo "amd64"   ;;
+    aarch64|arm64) echo "arm64"   ;;
+    armv7l)        echo "armv7"   ;;
+    armv6l)        echo "armv6"   ;;
+    armv5*)        echo "armv5"   ;;
+    i386|i686)     echo "386"     ;;
+    riscv64)       echo "riscv64" ;;
+    ppc64le)       echo "ppc64le" ;;
+    s390x)         echo "s390x"   ;;
+    mips64el)      echo "mips64le";;
+    mipsel)        echo "mipsle"  ;;
+    *)             die "unsupported architecture: $m" ;;
+  esac
+}
+
+asset_name()   { echo "chrony_exporter-${1}.linux-${2}.tar.gz"; }
+asset_binary() { echo "chrony_exporter-${1}.linux-${2}/chrony_exporter"; }
+
+# chrony_exporter, version 0.14.0 (branch: HEAD, revision: ...)
+binary_version() { "$1" --version 2>&1 | head -1 | awk '{print $3}'; }
+
+health_check() { metrics_match '^chrony_up '; }
+
+update_binary_main "$@"

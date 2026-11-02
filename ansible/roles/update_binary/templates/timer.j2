@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Weekly {{ update_binary_tool.name }} update check
+
+[Timer]
+OnCalendar={{ update_binary_tool.on_calendar | default(update_binary_on_calendar) }}
+RandomizedDelaySec={{ update_binary_tool.randomized_delay | default(update_binary_randomized_delay) }}
+# Catch up after downtime instead of silently skipping a window.
+Persistent=true
+Unit=update-{{ update_binary_tool.name }}.service
+
+[Install]
+WantedBy=timers.target

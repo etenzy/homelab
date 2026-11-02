@@ -1,0 +1,40 @@
+---
+- name: Packages fish and sudo
+  ansible.builtin.apt:
+    name: [fish, sudo]
+
+- name: Admin user with fish as login shell
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    shell: "{{ admin_shell }}"
+
+- name: No SSH key, no disabling password auth
+  ansible.builtin.assert:
+    that: admin_ssh_keys | length > 0 or ssh_password_auth
+
+- name: SSH keys (URL like https://github.com/<user>.keys or a key string)
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ item }}"
+  loop: "{{ admin_ssh_keys }}"
+
+- name: Fish configuration (system-wide)
+  ansible.builtin.copy:
+    src: homelab.fish
+    dest: /etc/fish/conf.d/homelab.fish
+    mode: "0644"
+
+- name: Sudoers file
+  ansible.builtin.template:
+    src: sudoers.j2
+    dest: /etc/sudoers.d/10-{{ admin_user }}
+    mode: "0440"
+    validate: visudo -cf %s
+
+- name: Harden SSH
+  ansible.builtin.template:
+    src: sshd-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-hardening.conf
+    mode: "0644"
+    validate: sshd -t -f %s
+  notify: Reload sshd

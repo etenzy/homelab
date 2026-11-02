@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+# Global block router as on earth: internal endpoints never via web/websecure.
+# Compare with earth/config/dynamic/block-paths.yml in case it lists more.
+http:
+  routers:
+    block-paths:
+      rule: >-
+        PathPrefix(`/metrics`) || PathPrefix(`/health`) || PathPrefix(`/actuator`) ||
+        PathPrefix(`/debug/pprof`) || PathPrefix(`/.env`) || PathPrefix(`/.git`)
+      priority: 1000000
+      service: noop@internal

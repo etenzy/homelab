@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+#
+# update-redis_exporter — auto-updater for the oliver006/redis_exporter binary.
+#
+#   Thin wrapper around update-binary.sh. Health = redis_exporter_build_info
+#   carries the expected version.
+#
+#   Usage:
+#     update-redis_exporter                    update if a newer release exists
+#     update-redis_exporter --check            report only, change nothing
+#     update-redis_exporter --dry-run          do everything except install/restart
+#     update-redis_exporter --force            reinstall even if already current
+#     update-redis_exporter --version 1.90.0   pin a specific version
+#     update-redis_exporter --no-restart       install only, leave the unit alone
+#
+#   Exit codes: 0 ok / nothing to do, 1 error, 2 update available (--check only)
+#
+# NAME, CHECKSUMS and friends are read by update-binary.sh.
+# shellcheck disable=SC2034
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. "${UPDATE_BINARY_LIB:-/usr/local/lib/update-binary/update-binary.sh}"
+
+NAME=redis_exporter
+REPO="${REPO:-oliver006/redis_exporter}"
+CHECKSUMS=sha256sums.txt
+METRICS_URL="${METRICS_URL:-http://127.0.0.1:9121/metrics}"
+
+# redis_exporter publishes a much shorter arch list than most Prometheus
+# exporters: no armv5/6/7 split (everything 32-bit ARM is "arm"), and no
+# riscv64 build at all.
+map_arch() {
+  local m; m="$(uname -m)"
+  case "$m" in
+    x86_64|amd64)         echo "amd64"    ;;
+    aarch64|arm64)        echo "arm64"    ;;
+    armv5*|armv6l|armv7l) echo "arm"      ;;
+    i386|i686)            echo "386"      ;;
+    ppc64le)              echo "ppc64le"  ;;
+    ppc64)                echo "ppc64"    ;;
+    s390x)                echo "s390x"    ;;
+    mips64el)             echo "mips64le" ;;
+    mips64)               echo "mips64"   ;;
+    riscv64)              die "upstream publishes no linux-riscv64 build for ${REPO}; build from source instead" ;;
+    *)                    die "unsupported architecture: $m" ;;
+  esac
+}
+
+# Note the "v" inside the filename — redis_exporter keeps it, unlike the
+# Prometheus-tooling exporters which drop it.
+asset_name()   { echo "redis_exporter-v${1}.linux-${2}.tar.gz"; }
+asset_binary() { echo "redis_exporter-v${1}.linux-${2}/redis_exporter"; }
+
+# redis_exporter does not use the prometheus/common version package. It logs a
+# single line to stderr instead, e.g.
+#   time="..." level=info msg="Redis Metrics Exporter v1.91.1    build date: ..."
+binary_version() { "$1" --version 2>&1 | head -1 | parse_vversion; }
+
+# IMPORTANT: health is measured on redis_exporter_build_info, never on redis_up.
+# redis_up reports whether REDIS is reachable, not whether the EXPORTER works.
+# Gating on it would roll back a perfectly good binary whenever Redis happens
+# to be down. build_info is always 1 and carries the version as a label, so it
+# also proves the restarted process is really running the new build.
+health_check() { metrics_match "^redis_exporter_build_info{.*version=\"v${1}\""; }
+
+update_binary_main "$@"

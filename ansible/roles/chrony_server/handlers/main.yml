@@ -1,0 +1,16 @@
+---
+# A restart re-runs NTS-KE; clients keep their time, chrony slews afterwards.
+- name: Restart chrony
+  ansible.builtin.systemd_service:
+    name: chrony
+    state: restarted
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Restart chrony_exporter
+  ansible.builtin.systemd_service:
+    name: chrony_exporter
+    state: restarted
+    daemon_reload: true
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"

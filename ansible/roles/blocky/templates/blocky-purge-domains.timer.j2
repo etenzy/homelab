@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Delete unwanted domains from log_entries every 3h
+
+[Timer]
+OnCalendar=*-*-* 00/3:00:00
+RandomizedDelaySec=300
+Persistent=true
+Unit=blocky-purge-domains.service
+
+[Install]
+WantedBy=timers.target

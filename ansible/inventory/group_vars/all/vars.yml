@@ -1,0 +1,75 @@
+---
+# Homelab-wide settings. Role defaults (versions, technical defaults) live in
+# roles/*/defaults/main.yml; override them here (all hosts), in group_vars/<group>/
+# or in host_vars/<host>/. Secrets: vault.yml (template: vault.yml.example).
+
+# --- Connection ----------------------------------------------------------------
+home_domain: home.rdl.sh
+ansible_host: "{{ inventory_hostname }}.{{ home_domain }}"
+ansible_user: "{{ admin_user }}"
+
+# Live config files fetched from the hosts (fetch-host-files.yml), used by roles
+# whose configs are not templated (blocky, pg_hba, valkey).
+host_files_dir: "{{ inventory_dir }}/../host_files/{{ inventory_hostname }}"
+host_files_fetch: []
+
+# --- Derived from group membership ---------------------------------------------
+nvidia_enabled: "{{ 'gpu_hosts' in group_names }}"
+
+# --- Network (base role, systemd-networkd) ----------------------------------------
+# Homelab defaults for the primary interface. Off until checked per host; the
+# host-specific parts (static addresses) go to host_vars, e.g.
+#   network_manage: true
+#   network_ipv6_addresses: ["fd00:10:73:10::5/64"]
+network_manage: false
+network_ipv4: dhcp                       # reservations on the UDM; static: + _address/_gateway
+network_ipv6_accept_ra: true             # default route + RDNSS from the UDM
+network_ipv6_slaac: false                # servers: fixed ULA instead of SLAAC addresses
+network_ipv6_token: ""                   # with slaac: fixed interface ID, e.g. "::5"
+network_ipv6_privacy: false              # no temporary addresses on servers
+network_ipv6_addresses: []
+network_mtu: ""                          # 9000 only if port, NAS and UDM VLAN support jumbo
+network_dns: []                          # empty: leave /etc/resolv.conf alone
+docker_mtu: ""                           # only for host MTU < 1500 (roles/docker/defaults)
+
+# --- Base ----------------------------------------------------------------------
+timezone: Europe/Berlin
+ntp_servers: ["time.{{ home_domain }}"]   # timesyncd on clients; chrony on sun serves it
+
+# --- Admin user, fish, sudo, SSH -----------------------------------------------
+admin_user: mroedel
+admin_ssh_keys:
+  - https://github.com/etenzy.keys       # or keys as strings
+
+# --- Derived from the host's own addresses (facts) -------------------------------
+# IPv4: address of the default route interface. IPv6: the static ULA on that
+# interface, recognised by a short interface ID ("fd..::2"); SLAAC (EUI-64) and
+# privacy addresses are skipped, otherwise the first ULA is taken. Override
+# host_ipv4 / host_ipv6 in host_vars if the guess is wrong.
+host_iface: "{{ ansible_facts['default_ipv4']['interface'] | default('') }}"
+host_ipv4: "{{ ansible_facts['default_ipv4']['address'] | default('') }}"
+host_ipv6_ulas: >-
+  {{ ansible_facts[host_iface | replace('-', '_')]['ipv6'] | default([])
+     | selectattr('scope', 'eq', 'global') | map(attribute='address')
+     | select('match', '^f[cd]') | list }}
+host_ipv6: >-
+  {{ (host_ipv6_ulas | select('match', '^[0-9a-f:]+::[0-9a-f]{1,4}$') | list + host_ipv6_ulas)
+     | first | default('') }}
+# Service addresses of this host (empty entries dropped). Used for PostgreSQL
+# listen_addresses, chrony bindaddress and Valkey bind. Exporters listen on all
+# addresses (:port), Blocky by default as well.
+host_addresses: "{{ [host_ipv4, host_ipv6] | select | list }}"
+
+# --- Networks ------------------------------------------------------------------
+# Admin networks (VLAN 30 + VLAN 10), e.g. for dashboard allowlists.
+admin_networks:
+  - 10.73.30.0/24
+  - fd00:10:73:30::/64
+  - 10.73.10.0/24
+  - fd00:10:73:10::/64
+
+# --- Shared services -----------------------------------------------------------
+prometheus_host: earth                   # scrapes the exporters over the network
+nas_host: 10.73.10.2                     # Synology DS414
+# CIFS credentials are NOT global: one NAS user per host and container, stored in
+# host_vars/<host>/vault.yml as vault_<container>_cifs_user / _password.

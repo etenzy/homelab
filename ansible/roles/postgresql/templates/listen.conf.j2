@@ -1,0 +1,3 @@
+# {{ ansible_managed }}
+# Changing listen_addresses needs a RESTART.
+listen_addresses = '{{ postgresql_listen_addresses | join(",") }}'

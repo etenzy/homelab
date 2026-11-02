@@ -1,0 +1,35 @@
+---
+# Syncs one list directory (blocky_list_dir) from host_files to the host.
+- name: "List directory exists: {{ blocky_list_dir }}"
+  ansible.builtin.file:
+    path: "{{ blocky_list_dir }}"
+    state: directory
+    owner: root
+    group: blocky
+    mode: "0750"
+
+- name: "List files: {{ blocky_list_dir }}"
+  ansible.builtin.copy:
+    src: "{{ host_files_dir }}{{ blocky_list_dir }}/"
+    dest: "{{ blocky_list_dir }}/"
+    owner: root
+    group: blocky
+    mode: "0640"
+    directory_mode: "0750"
+  notify: Reload blocky lists
+
+- name: "Files on the host: {{ blocky_list_dir }}"
+  ansible.builtin.find:
+    paths: "{{ blocky_list_dir }}"
+    recurse: true
+    file_type: file
+    hidden: true
+  register: blocky_list_remote
+
+- name: "Files removed from host_files are removed: {{ blocky_list_dir }}"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ blocky_list_remote.files | map(attribute='path') | list }}"
+  when: not ((host_files_dir ~ item) is file)
+  notify: Reload blocky lists

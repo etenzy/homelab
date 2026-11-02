@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+http:
+  middlewares:
+    # Use on web routers as "redirect-to-https@file".
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true

@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Prometheus Redis Exporter
+Documentation=https://github.com/oliver006/redis_exporter
+Wants=network-online.target
+After=network-online.target {{ valkey_service }}.service
+
+[Service]
+User=redis_exporter
+EnvironmentFile=/etc/redis_exporter/redis_exporter
+ExecStart=/usr/local/bin/redis_exporter \
+  --web.listen-address=:{{ redis_exporter_port }} \
+  --include-system-metrics
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

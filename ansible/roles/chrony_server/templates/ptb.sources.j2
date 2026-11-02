@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+# NTS-authenticated time sources (PTB Braunschweig).
+{% for s in chrony_nts_servers %}
+server {{ s }} iburst nts
+{% endfor %}

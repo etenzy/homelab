@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Update the {{ update_binary_tool.name }} binary
+Documentation=https://github.com/{{ update_binary_tool.repo }}
+Wants=network-online.target
+After=network-online.target{{ (' ' ~ update_binary_tool.after) if update_binary_tool.after is defined else '' }}
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/update-{{ update_binary_tool.name }}
+# Runs as root: writes /usr/local/bin and restarts {{ update_binary_tool.name }}.service.
+# Do not add ProtectSystem=strict here.
+TimeoutStartSec=10min
+# Output: journalctl -u update-{{ update_binary_tool.name }}.service

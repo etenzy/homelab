@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+# Included at the end of {{ valkey_config }}: values here override the defaults.
+bind {{ valkey_bind | join(' ') }}
+port {{ valkey_port }}
+{% if valkey_aclfile_src is file %}
+aclfile {{ valkey_aclfile }}
+{% endif %}
+{% for key, value in valkey_settings.items() %}
+{{ key }} {{ value }}
+{% endfor %}

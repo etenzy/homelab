@@ -1,0 +1,51 @@
+-- {{ ansible_managed }}
+-- Weekly partitions for blocky's query log (log_entries). Creates the current
+-- week plus p_premake weeks ahead and drops partitions older than p_retention.
+-- Owned by blocky so it can create and drop partitions of blocky's table.
+SET ROLE blocky;
+
+CREATE OR REPLACE FUNCTION public.maintain_log_entries_partitions(
+    p_premake   int      DEFAULT {{ blocky_partition_premake | int }},
+    p_retention interval DEFAULT '{{ blocky_partition_retention }}'
+) RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_week   date;
+    v_part   text;
+    v_cutoff date := (now() - p_retention)::date;
+    r        record;
+BEGIN
+    -- Current week plus p_premake weeks ahead.
+    FOR i IN 0..p_premake LOOP
+        v_week := (date_trunc('week', now()) + (i || ' weeks')::interval)::date;
+        v_part := format('log_entries_%s', to_char(v_week, 'IYYY_"w"IW'));
+
+        IF to_regclass('public.' || v_part) IS NULL THEN
+            EXECUTE format(
+                'CREATE TABLE %I PARTITION OF log_entries FOR VALUES FROM (%L) TO (%L)',
+                v_part, v_week, v_week + 7);
+            RAISE NOTICE 'created: % (% to %)', v_part, v_week, v_week + 7;
+        END IF;
+    END LOOP;
+
+    -- Drop partitions whose upper bound lies before the cutoff.
+    FOR r IN
+        SELECT c.oid::regclass::text AS part,
+               (regexp_match(pg_get_expr(c.relpartbound, c.oid),
+                             'TO \(''([^'']+)''\)'))[1]::timestamptz AS upper_bound
+        FROM pg_class c
+        JOIN pg_inherits i ON i.inhrelid = c.oid
+        WHERE i.inhparent = 'log_entries'::regclass
+          AND pg_get_expr(c.relpartbound, c.oid) <> 'DEFAULT'
+        ORDER BY 2
+    LOOP
+        IF r.upper_bound <= v_cutoff THEN
+            EXECUTE format('DROP TABLE %s', r.part);
+            RAISE NOTICE 'dropped: % (up to %)', r.part, r.upper_bound::date;
+        END IF;
+    END LOOP;
+END;
+$$;
+
+RESET ROLE;

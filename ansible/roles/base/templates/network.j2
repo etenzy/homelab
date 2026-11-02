@@ -1,0 +1,35 @@
+# {{ ansible_managed }}
+[Match]
+MACAddress={{ network_mac }}
+
+{% if network_mtu | string | length > 0 %}
+[Link]
+MTUBytes={{ network_mtu }}
+
+{% endif %}
+[Network]
+DHCP={{ 'ipv4' if network_ipv4 == 'dhcp' else 'no' }}
+{% if network_ipv4 == 'static' %}
+Address={{ network_ipv4_address }}
+Gateway={{ network_ipv4_gateway }}
+{% endif %}
+{% for a in network_ipv6_addresses %}
+Address={{ a }}
+{% endfor %}
+IPv6AcceptRA={{ 'yes' if network_ipv6_accept_ra else 'no' }}
+IPv6PrivacyExtensions={{ 'yes' if network_ipv6_privacy else 'no' }}
+LinkLocalAddressing=ipv6
+{% if network_ipv6_accept_ra %}
+
+[IPv6AcceptRA]
+UseAutonomousPrefix={{ 'yes' if network_ipv6_slaac else 'no' }}
+{% if network_ipv6_token | length > 0 %}
+Token=static:{{ network_ipv6_token }}
+{% endif %}
+{% endif %}
+{% if network_ipv4 == 'dhcp' and network_mtu | string | length > 0 %}
+
+[DHCPv4]
+# The MTU above wins over a DHCP-provided one.
+UseMTU=no
+{% endif %}

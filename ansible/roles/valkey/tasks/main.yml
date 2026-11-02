@@ -1,0 +1,102 @@
+---
+- name: Valkey
+  ansible.builtin.apt:
+    name: "{{ valkey_package }}"
+
+- name: Include directory
+  ansible.builtin.file:
+    path: "{{ valkey_include_dir }}"
+    state: directory
+    owner: root
+    group: valkey
+    mode: "0750"
+
+- name: Homelab settings (included last)
+  ansible.builtin.template:
+    src: homelab.conf.j2
+    dest: "{{ valkey_include_dir }}/homelab.conf"
+    owner: root
+    group: valkey
+    mode: "0640"
+  notify: Restart valkey
+
+- name: ACL file from host_files
+  ansible.builtin.copy:
+    src: "{{ valkey_aclfile_src }}"
+    dest: "{{ valkey_aclfile }}"
+    owner: valkey
+    group: valkey
+    mode: "0640"
+  when: valkey_aclfile_src is file
+  no_log: true
+  notify: Restart valkey
+
+# Last line of the package config, so the include overrides everything above.
+- name: Package config includes conf.d
+  ansible.builtin.lineinfile:
+    path: "{{ valkey_config }}"
+    line: include {{ valkey_include_dir }}/*.conf
+    insertafter: EOF
+  notify: Restart valkey
+
+- name: Run handlers now
+  ansible.builtin.meta: flush_handlers
+
+- name: Valkey is running
+  ansible.builtin.systemd_service:
+    name: "{{ valkey_service }}"
+    enabled: true
+    state: started
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# --- redis_exporter -----------------------------------------------------------------
+- name: User redis_exporter
+  ansible.builtin.user:
+    name: redis_exporter
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Env directory
+  ansible.builtin.file:
+    path: /etc/redis_exporter
+    state: directory
+    mode: "0755"
+
+- name: Env file from host_files (contains the password)
+  ansible.builtin.copy:
+    src: "{{ redis_exporter_env_src }}"
+    dest: /etc/redis_exporter/redis_exporter
+    owner: root
+    group: redis_exporter
+    mode: "0640"
+  when: redis_exporter_env_src is file
+  no_log: true
+  notify: Restart redis_exporter
+
+- name: Unit redis_exporter
+  ansible.builtin.template:
+    src: redis_exporter.service.j2
+    dest: /etc/systemd/system/redis_exporter.service
+    mode: "0644"
+  notify: Restart redis_exporter
+
+- name: Binary and updater for redis_exporter
+  ansible.builtin.include_role:
+    name: update_binary
+  vars:
+    update_binary_tool:
+      name: redis_exporter
+      repo: oliver006/redis_exporter
+
+- name: Run handlers now
+  ansible.builtin.meta: flush_handlers
+
+- name: Service redis_exporter is running
+  ansible.builtin.systemd_service:
+    name: redis_exporter
+    enabled: true
+    state: started
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"

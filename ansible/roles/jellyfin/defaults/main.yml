@@ -1,0 +1,14 @@
+---
+jellyfin_version: "12.4"                 # 2026-10-26
+jellyfin_host: "jellyfin.{{ home_domain }}"
+jellyfin_uid: 1100
+jellyfin_transcode_size: 4g
+jellyfin_exporter_version: v1.6.0        # rebelcore, 2026-10-26
+media_mounts: []
+media_readonly: true                     # mount and container ro; false if Jellyfin should write NFO/images
+nfs_opts: "nfsvers=4.1,soft,timeo=150,retrans=3"   # DS414/DSM 7.1 supports 4.1; otherwise nfsvers=3
+cifs_opts: "vers=3.0"
+# Own NAS user for this container on this host (e.g. mars-jellyfin), read-only on the shares.
+jellyfin_cifs_user: "{{ vault_jellyfin_cifs_user }}"
+jellyfin_cifs_password: "{{ vault_jellyfin_cifs_password }}"
+nvidia_enabled: false

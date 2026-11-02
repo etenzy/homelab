@@ -1,0 +1,268 @@
+---
+# --- Packages ------------------------------------------------------------------
+- name: PGDG repository
+  ansible.builtin.deb822_repository:
+    name: pgdg
+    uris: https://apt.postgresql.org/pub/repos/apt
+    suites: "{{ ansible_facts['distribution_release'] }}-pgdg"
+    components: main
+    signed_by: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: "{{ 'present' if postgresql_pgdg else 'absent' }}"
+  register: postgresql_repo
+
+# PGDG's meta package "postgresql" depends on the newest major; never take it
+# (or postgresql-client/-contrib) from there.
+- name: Keep the PGDG meta packages away
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/pgdg-meta
+    content: |
+      # {{ ansible_managed }}
+      Package: postgresql postgresql-client postgresql-contrib postgresql-doc
+      Pin: release o=apt.postgresql.org
+      Pin-Priority: -1
+    mode: "0644"
+  when: postgresql_pgdg
+
+# The PGDG setup script writes pgdg.list; with the deb822 file above apt would
+# warn about duplicate sources.
+- name: Remove the old PGDG list file
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/pgdg.list
+    state: absent
+  register: postgresql_old_list
+
+# Installed for real even with --check: without them every community.postgresql
+# task fails in the dry run. Both are small Debian packages.
+- name: Ansible prerequisites (also in check mode)
+  ansible.builtin.apt:
+    name:
+      - python3-psycopg2          # for community.postgresql
+      - acl                       # become_user postgres (remote_tmp permissions)
+  check_mode: false
+
+- name: PostgreSQL {{ postgresql_version }}
+  ansible.builtin.apt:
+    name: postgresql-{{ postgresql_version }}
+    update_cache: "{{ postgresql_repo.changed or postgresql_old_list.changed }}"
+
+# --- Configuration ---------------------------------------------------------------
+- name: Config snippets in conf.d
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ postgresql_conf_dir }}/conf.d/{{ item.dest }}"
+    owner: postgres
+    group: postgres
+    mode: "0644"
+  loop:
+    - { src: listen.conf.j2, dest: listen.conf, enabled: true }
+    - { src: pg_stat_statements.conf.j2, dest: pg_stat_statements.conf, enabled: "{{ postgresql_stat_statements }}" }
+  loop_control:
+    label: "{{ item.dest }}"
+  when: item.enabled | bool
+  notify: Restart postgresql
+
+# Without include_dir the conf.d snippets (listen, pg_stat_statements) would be
+# silently ignored.
+- name: File postgresql.conf from host_files still includes conf.d
+  ansible.builtin.assert:
+    that: lookup('ansible.builtin.file', postgresql_conf_src) is search("(?m)^\\s*include_dir\\s*=\\s*'conf\\.d'")
+    fail_msg: "{{ postgresql_conf_src }} has no active include_dir = 'conf.d' line."
+  when: postgresql_conf_src is file
+
+- name: File postgresql.conf from host_files
+  ansible.builtin.copy:
+    src: "{{ postgresql_conf_src }}"
+    dest: "{{ postgresql_conf_dir }}/postgresql.conf"
+    owner: postgres
+    group: postgres
+    mode: "0644"
+  when: postgresql_conf_src is file
+  notify: Restart postgresql
+
+- name: Run handlers now
+  ansible.builtin.meta: flush_handlers
+
+- name: PostgreSQL is running
+  ansible.builtin.systemd_service:
+    name: postgresql
+    enabled: true
+    state: started
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# --- Databases -------------------------------------------------------------------
+- name: Databases
+  community.postgresql.postgresql_db:
+    name: "{{ item.name }}"
+    owner: "{{ item.owner | default(omit) }}"
+    state: "{{ item.state | default('present') }}"
+    login_unix_socket: /run/postgresql
+  become: true
+  become_user: postgres
+  loop: "{{ postgresql_databases }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# --- Users -----------------------------------------------------------------------
+- name: Users
+  community.postgresql.postgresql_user:
+    name: "{{ item.name }}"
+    role_attr_flags: "{{ item.attrs | default(omit) }}"
+    conn_limit: "{{ item.conn_limit | default(omit) }}"
+    password: "{{ postgresql_passwords[item.name] | default(omit) }}"
+    state: "{{ item.state | default('present') }}"
+    login_unix_socket: /run/postgresql
+  become: true
+  become_user: postgres
+  loop: "{{ postgresql_present_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: "{{ item.name in postgresql_passwords }}"
+
+- name: Role memberships
+  community.postgresql.postgresql_membership:
+    groups: "{{ item.groups }}"
+    target_roles: ["{{ item.name }}"]
+    login_unix_socket: /run/postgresql
+  become: true
+  become_user: postgres
+  loop: "{{ postgresql_present_users | selectattr('groups', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# search_path is a list, so it is not quoted as a whole.
+- name: Role settings (ALTER ROLE ... SET, always applied)
+  community.postgresql.postgresql_query:
+    query: >-
+      ALTER ROLE "{{ item.0.name }}" SET {{ item.1.key }} =
+      {{ item.1.value if item.1.key == 'search_path' else "'" ~ item.1.value ~ "'" }}
+    login_unix_socket: /run/postgresql
+  become: true
+  become_user: postgres
+  loop: "{{ postgresql_present_users | subelements('settings', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.name }}: {{ item.1.key }}"
+  changed_when: false
+
+- name: Privileges
+  community.postgresql.postgresql_privs:
+    login_db: "{{ item.1.db if item.1.db is defined else item.1.objs }}"
+    roles: "{{ item.0.name }}"
+    type: "{{ item.1.type }}"
+    objs: "{{ item.1.objs }}"
+    privs: "{{ item.1.privs }}"
+    login_unix_socket: /run/postgresql
+  become: true
+  become_user: postgres
+  loop: "{{ postgresql_present_users | subelements('grants', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.name }}: {{ item.1.privs }} on {{ item.1.type }} {{ item.1.objs }}"
+
+- name: Extensions
+  community.postgresql.postgresql_ext:
+    name: "{{ item.1 }}"
+    login_db: "{{ item.0.name }}"
+    login_unix_socket: /run/postgresql
+  become: true
+  become_user: postgres
+  loop: "{{ postgresql_present_databases | subelements('extensions', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.name }}: {{ item.1 }}"
+
+# --- pg_hba.conf -----------------------------------------------------------------
+# pg_hba_file_rules reads the file on disk, not the loaded one: check the new
+# file before the reload and put the old one back if PostgreSQL rejects it.
+- name: File pg_hba.conf
+  block:
+    - name: File pg_hba.conf from postgresql_users
+      ansible.builtin.template:
+        src: pg_hba.conf.j2
+        dest: "{{ postgresql_conf_dir }}/pg_hba.conf"
+        owner: postgres
+        group: postgres
+        mode: "0640"
+        backup: true
+      register: postgresql_hba
+      notify: Reload postgresql
+
+    - name: File pg_hba.conf has no errors
+      community.postgresql.postgresql_query:
+        query: SELECT line_number, error FROM pg_hba_file_rules WHERE error IS NOT NULL
+        login_unix_socket: /run/postgresql
+      become: true
+      become_user: postgres
+      register: postgresql_hba_errors
+      failed_when: postgresql_hba_errors.rowcount > 0
+      changed_when: false
+      when: not ansible_check_mode
+  rescue:
+    - name: Restore the previous pg_hba.conf
+      ansible.builtin.copy:
+        src: "{{ postgresql_hba.backup_file }}"
+        dest: "{{ postgresql_conf_dir }}/pg_hba.conf"
+        remote_src: true
+        owner: postgres
+        group: postgres
+        mode: "0640"
+      when: postgresql_hba.backup_file is defined
+
+    - name: Stop after a broken pg_hba.conf
+      ansible.builtin.fail:
+        msg: "New pg_hba.conf rejected, old file restored: {{ postgresql_hba_errors.query_result | default('') }}"
+
+- name: Reload for pg_hba.conf now
+  ansible.builtin.meta: flush_handlers
+
+# Drop users only after pg_hba.conf no longer references them.
+- name: Removed users
+  community.postgresql.postgresql_user:
+    name: "{{ item.name }}"
+    state: absent
+    login_unix_socket: /run/postgresql
+  become: true
+  become_user: postgres
+  loop: "{{ postgresql_absent_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# --- postgres_exporter -------------------------------------------------------------
+# OS user = DB role, so peer auth over the Unix socket works without a password.
+- name: User postgres_exporter
+  ansible.builtin.user:
+    name: postgres_exporter
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Environment and unit for postgres_exporter
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "0644"
+  loop:
+    - { src: postgres_exporter.default.j2, dest: /etc/default/postgres_exporter }
+    - { src: postgres_exporter.service.j2, dest: /etc/systemd/system/postgres_exporter.service }
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Restart postgres_exporter
+
+- name: Binary and updater for postgres_exporter
+  ansible.builtin.include_role:
+    name: update_binary
+  vars:
+    update_binary_tool:
+      name: postgres_exporter
+      repo: prometheus-community/postgres_exporter
+      # Blocky as resolver: the updater needs DNS to reach GitHub.
+      after: "postgresql.service{{ ' blocky.service' if 'blocky_hosts' in group_names else '' }}"
+
+- name: Run handlers now
+  ansible.builtin.meta: flush_handlers
+
+- name: Service postgres_exporter is running
+  ansible.builtin.systemd_service:
+    name: postgres_exporter
+    enabled: true
+    state: started
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"

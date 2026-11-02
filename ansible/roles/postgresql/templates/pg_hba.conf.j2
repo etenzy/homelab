@@ -1,0 +1,36 @@
+# {{ ansible_managed }}
+# Generated from postgresql_users (hba) and postgresql_hba_extra. First match wins;
+# anything not matched is rejected.
+#
+# TYPE    DATABASE                 USER                ADDRESS                  METHOD
+
+# Superuser over the socket only (Debian default, needed by Ansible itself).
+local     all                      postgres                                     peer
+{% macro line(e, users) %}
+{% set dbs = e.databases | default(['all']) | join(',') %}
+{% set opts = (' ' ~ e.options) if e.options is defined else '' %}
+{% if e.type == 'local' %}
+{{ '%-9s %-24s %-19s %-24s %s%s' | format('local', dbs, users, '', e.method, opts) }}
+{% else %}
+{% for addr in e.addresses %}
+{{ '%-9s %-24s %-19s %-24s %s%s' | format(e.type, dbs, users, addr, e.method, opts) }}
+{% endfor %}
+{% endif %}
+{% endmacro %}
+{% for user in postgresql_present_users if user.hba is defined %}
+
+# {{ user.name }}{{ (' - ' ~ user.comment) if user.comment is defined else '' }}
+{% for e in user.hba %}
+{{ line(e, user.name) -}}
+{% endfor %}
+{% endfor %}
+{% if postgresql_hba_extra | length > 0 %}
+
+# Extra lines (postgresql_hba_extra)
+{% for e in postgresql_hba_extra %}
+{% if e.comment is defined %}
+# {{ e.comment }}
+{% endif %}
+{{ line(e, e.users | default(['all']) | join(',')) -}}
+{% endfor %}
+{% endif %}

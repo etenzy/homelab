@@ -1,0 +1,14 @@
+---
+# NTP server with NTS-authenticated upstreams (PTB Braunschweig).
+chrony_nts_servers:
+  - ptbtime1.ptb.de
+  - ptbtime2.ptb.de
+  - ptbtime3.ptb.de
+  - ptbtime4.ptb.de
+chrony_minsources: 2
+# One address per family (chrony limit), derived from the host's addresses.
+chrony_bind_addresses: "{{ host_addresses | default([]) }}"
+chrony_allow: ["0.0.0.0/0", "::/0"]
+chrony_clientloglimit: 4194304
+chrony_orphan_stratum: 10
+chrony_exporter_port: 9123

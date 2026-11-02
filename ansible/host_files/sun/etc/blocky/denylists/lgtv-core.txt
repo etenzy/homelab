@@ -1,0 +1,18 @@
+# SDX-Telemetrie (Haupt-Phone-Home, /usr/sbin/sdx)
+# deckt ibs., ibsstat., rdx2. mit ab
+nextlgsdp.com
+# Home-Dienste: nudge, homeprv, recommend, cdpsvc,
+# cdpbeacon, rdl (rdxd-Analytics), wiseconfig, pnv
+lgtvcommon.com
+# Werbung: admanager pollt info.lgsmartad.com ca. alle 60s
+lgsmartad.com
+# Gallery+ / Wise-Account
+lggalleryplus.com
+tv.wiselg.com
+# LG Shop
+lgshopsvc.lgappstv.com
+# AI-/LLM-Plattform (com.webos.app.aiplatform)
+ngfts.lge.com
+qt2-ngfts.lge.com
+kic-ngfts.lge.com
+kic-qt2-ngfts.lge.com

@@ -1,0 +1,27 @@
+---
+# Drops DNS for a moment; only fires when config or unit changed.
+- name: Restart blocky
+  ansible.builtin.systemd_service:
+    name: blocky
+    state: restarted
+    daemon_reload: true
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# List changes: reload via the API, restart only if that fails. Handlers run in
+# this order, so the fallback sees the result of the refresh.
+- name: Refresh blocky lists via API
+  ansible.builtin.command: /usr/local/bin/blocky --config /etc/blocky/config.yml lists refresh
+  register: blocky_lists_refresh
+  changed_when: blocky_lists_refresh.rc == 0
+  failed_when: false
+  listen: Reload blocky lists
+
+- name: Restart blocky (list refresh failed)
+  ansible.builtin.systemd_service:
+    name: blocky
+    state: restarted
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+  when: blocky_lists_refresh.rc | default(1) != 0
+  listen: Reload blocky lists

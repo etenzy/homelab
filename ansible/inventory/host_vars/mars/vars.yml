@@ -1,0 +1,17 @@
+---
+# mars: HP EliteDesk 800 G3 SFF (i7-7700, 32 GB, NVMe, RTX A400, UEFI), Debian 13.
+# Jellyfin host. Only what differs from group_vars and role defaults lives here.
+
+# --- Jellyfin ------------------------------------------------------------------
+jellyfin_host: "jellyfin.{{ home_domain }}"
+jellyfin_exporter_token: "{{ vault_jellyfin_exporter_token }}"
+
+# Docker volumes nas-<name> (local driver, NFS/CIFS), in the container under dest
+# (default /media/<name>). share: NFS export path or CIFS share name.
+# Set dest to the paths from the earth compose file, otherwise the migrated
+# Jellyfin configuration will not find its libraries.
+media_mounts:
+  - { name: movies, type: nfs, share: /volume1/Movies }
+  - { name: shows, type: nfs, share: /volume1/Shows }
+  - { name: archive-movies, type: cifs, share: Archive-Movies }
+  - { name: archive-shows, type: cifs, share: Archive-Shows }

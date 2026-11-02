@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+Defaults:{{ admin_user }} !lecture
+Defaults use_pty
+{{ admin_user }} ALL=(ALL:ALL) {{ 'NOPASSWD: ' if sudo_nopasswd else '' }}ALL

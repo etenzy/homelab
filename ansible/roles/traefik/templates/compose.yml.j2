@@ -1,0 +1,32 @@
+# {{ ansible_managed }}
+services:
+  traefik:
+    image: traefik:{{ traefik_version }}
+    container_name: traefik
+    restart: unless-stopped
+    env_file: .env
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+      - "443:443"
+      # Metrics + /ping for Prometheus on {{ prometheus_host }}. Only the "metrics" entrypoint
+      # lives here, no routers, no API.
+      - "{{ traefik_metrics_port }}:8082"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config:/etc/traefik
+    networks:
+      traefik:
+        ipv4_address: {{ traefik_ipv4 }}
+        ipv6_address: {{ traefik_ipv6 }}
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  traefik:
+    name: {{ traefik_network.name }}
+    external: true

@@ -1,0 +1,34 @@
+# For prometheus.yml on earth, under scrape_configs.
+# One target per Ansible-managed host and exporter. Add new hosts here when they
+# join the corresponding inventory group (docker_hosts -> node, gpu_hosts -> nvidia-gpu,
+# jellyfin_hosts -> jellyfin, traefik_hosts -> traefik).
+#
+# mars replaces the targets nvidia_gpu_exporter:9835 and jellyfin-exporter:9594 on earth.
+# The traefik job is earth's existing job with a second static_config, so the
+# existing traefik: recording rules and alerts also cover mars.
+  - job_name: node
+    static_configs:
+      - targets: ["mars.home.rdl.sh:9100"]
+        labels: { instance: mars.home.rdl.sh }
+      # sun: binary node_exporter (role node_exporter). UDM: allow earth -> 10.1.0.2:9100.
+      # chrony (9123), redis (9121) and postgres (9187) on sun keep their existing jobs.
+      - targets: ["sun.home.rdl.sh:9100"]
+        labels: { instance: sun.home.rdl.sh }
+
+  - job_name: nvidia-gpu
+    static_configs:
+      - targets: ["mars.home.rdl.sh:9835"]
+        labels: { instance: mars.home.rdl.sh }
+
+  - job_name: jellyfin
+    static_configs:
+      - targets: ["mars.home.rdl.sh:9594"]
+        labels: { instance: mars.home.rdl.sh }
+
+  # Existing job on earth, add a second static_config:
+  - job_name: traefik
+    static_configs:
+      - targets: ["traefik:8082"]
+        labels: { instance: earth.home.rdl.sh }
+      - targets: ["mars.home.rdl.sh:8082"]
+        labels: { instance: mars.home.rdl.sh }

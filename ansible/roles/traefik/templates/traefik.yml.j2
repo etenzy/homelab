@@ -1,0 +1,67 @@
+# {{ ansible_managed }}
+# Traefik {{ traefik_version }} on {{ inventory_hostname }}. Static: changes need a restart
+# (the role recreates the container in that case).
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: INFO
+
+# JSON to stdout: check client IPs (ClientHost), later Loki.
+accessLog:
+  format: json
+
+api:
+  dashboard: true
+  insecure: false
+
+ping:
+  entryPoint: metrics
+
+entryPoints:
+  # No global redirect: per router via redirect-to-https@file.
+  # asDefault: routers without entryPoints (block router) attach only to web/websecure,
+  # not to the metrics port.
+  web:
+    address: ":80"
+    asDefault: true
+  websecure:
+    address: ":443"
+    asDefault: true
+    http:
+      # No wildcard: every router gets its own certificate for the names in its
+      # Host() rule, requested via DNS challenge on first use.
+      tls:
+        certResolver: dnsrdl
+  metrics:
+    address: ":8082"
+
+certificatesResolvers:
+  dnsrdl:
+    acme:
+      email: {{ acme_email }}
+      storage: /etc/traefik/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        resolvers: ["1.1.1.1:53", "1.0.0.1:53"]
+        propagation:
+          delayBeforeChecks: 30s
+
+providers:
+  docker:
+    exposedByDefault: false
+    # Required for containers in several networks (otherwise gateway timeout).
+    network: {{ traefik_network.name }}
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+metrics:
+  addInternals: false
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+    buckets: [0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]

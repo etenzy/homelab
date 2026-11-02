@@ -1,0 +1,90 @@
+# {{ ansible_managed }}
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:{{ jellyfin_version }}
+    container_name: jellyfin
+    restart: unless-stopped
+    user: "{{ jellyfin_uid }}:{{ jellyfin_uid }}"
+    environment:
+      - JELLYFIN_PublishedServerUrl=https://{{ jellyfin_host }}
+{% if nvidia_enabled %}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+{% endif %}
+    volumes:
+      - ./config:/config
+      - ./cache:/cache
+{% for m in media_mounts %}
+      - nas-{{ m.name }}:{{ m.dest | default('/media/' ~ m.name) }}{{ ':ro' if media_readonly else '' }}
+{% endfor %}
+    # Set the transcode path to /transcode in the dashboard (tmpfs, as on earth).
+    tmpfs:
+      - /transcode:size={{ jellyfin_transcode_size }},mode=1777
+    networks:
+      - traefik
+      - jellyfin
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.jellyfin.rule=Host(`{{ jellyfin_host }}`)
+      - traefik.http.routers.jellyfin.entrypoints=websecure
+      - traefik.http.routers.jellyfin-http.rule=Host(`{{ jellyfin_host }}`)
+      - traefik.http.routers.jellyfin-http.entrypoints=web
+      - traefik.http.routers.jellyfin-http.middlewares=redirect-to-https@file
+      - traefik.http.services.jellyfin.loadbalancer.server.port=8096
+
+  # Flags as on earth; if they differ, the earth compose file is the reference.
+  jellyfin-exporter:
+    image: rebelcore/jellyfin-exporter:{{ jellyfin_exporter_version }}
+    container_name: jellyfin-exporter
+    restart: unless-stopped
+    command:
+      - --jellyfin.address=http://jellyfin:8096
+      - --jellyfin.token=${JELLYFIN_EXPORTER_TOKEN}
+      - --collector.activity
+      - --collector.storage
+      - --collector.tasks
+      - --collector.transcoding
+    ports:
+      - "9594:9594"
+    networks:
+      - jellyfin
+    depends_on:
+      - jellyfin
+
+{% if media_mounts | length > 0 %}
+# NAS shares, mounted by Docker when the first container using them starts.
+# If the NAS is unreachable, Jellyfin does not start (instead of running with
+# empty libraries). CIFS credentials (own NAS user for jellyfin on this host)
+# come from .env (mode 0600).
+volumes:
+{% for m in media_mounts %}
+  nas-{{ m.name }}:
+    name: nas-{{ m.name }}
+    driver: local
+    driver_opts:
+{% if m.type == 'nfs' %}
+      type: nfs
+      o: "addr={{ nas_host }},{{ 'ro' if media_readonly else 'rw' }},{{ nfs_opts }}"
+      device: ":{{ m.share }}"
+{% else %}
+      type: cifs
+      o: "addr={{ nas_host }},{{ 'ro' if media_readonly else 'rw' }},{{ cifs_opts }},username=${NAS_CIFS_USER},password=${NAS_CIFS_PASSWORD},uid={{ jellyfin_uid }},gid={{ jellyfin_uid }}"
+      device: "//{{ nas_host }}/{{ m.share }}"
+{% endif %}
+{% endfor %}
+
+{% endif %}
+networks:
+  traefik:
+    name: {{ traefik_network.name }}
+    external: true
+  jellyfin:
+    name: jellyfin

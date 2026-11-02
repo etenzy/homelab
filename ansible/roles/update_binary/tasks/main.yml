@@ -1,0 +1,50 @@
+---
+- name: Required tools for the updater
+  ansible.builtin.apt:
+    name: [curl, tar, coreutils, util-linux, libcap2-bin]
+
+- name: Updater library
+  ansible.builtin.copy:
+    src: update-binary.sh
+    dest: "{{ update_binary_lib_dir }}/update-binary.sh"
+    mode: "0644"
+
+- name: Updater wrapper for {{ update_binary_tool.name }}
+  ansible.builtin.copy:
+    src: update-{{ update_binary_tool.name }}
+    dest: /usr/local/sbin/update-{{ update_binary_tool.name }}
+    mode: "0755"
+
+- name: Updater overrides for {{ update_binary_tool.name }}
+  ansible.builtin.copy:
+    dest: /etc/default/update-{{ update_binary_tool.name }}
+    content: |
+      # {{ ansible_managed }}
+      {% for k, v in update_binary_tool.env.items() %}
+      {{ k }}={{ v | quote }}
+      {% endfor %}
+    mode: "0644"
+  when: update_binary_tool.env | default({}) | length > 0
+
+- name: Update unit and timer for {{ update_binary_tool.name }}
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/update-{{ update_binary_tool.name }}.{{ item }}
+    mode: "0644"
+  loop: [service, timer]
+
+# Fresh install only. Later updates are the timer's job, so Ansible never fights
+# the updater over the version. --no-restart: the calling role starts the service.
+- name: Install the binary if missing for {{ update_binary_tool.name }}
+  ansible.builtin.command: /usr/local/sbin/update-{{ update_binary_tool.name }} --no-restart
+  args:
+    creates: "{{ update_binary_tool.bin_path | default('/usr/local/bin/' ~ update_binary_tool.name) }}"
+
+- name: Update timer is active for {{ update_binary_tool.name }}
+  ansible.builtin.systemd_service:
+    name: update-{{ update_binary_tool.name }}.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"

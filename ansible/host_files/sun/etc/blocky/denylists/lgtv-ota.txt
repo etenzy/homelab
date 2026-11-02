@@ -1,0 +1,7 @@
+# OTA / Firmware-Updates
+snu.lge.com
+su.lge.com
+su-ssl.lge.com
+nsu.lge.com
+snu-dev.lge.com
+su-dev.lge.com

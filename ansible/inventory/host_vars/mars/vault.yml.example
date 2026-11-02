@@ -1,0 +1,8 @@
+---
+# Secrets for mars only. Copy to vault.yml, fill in, then:
+#   ansible-vault encrypt inventory/host_vars/mars/vault.yml
+vault_jellyfin_exporter_token: CHANGE_ME               # Jellyfin -> Dashboard -> API keys
+# CIFS: one NAS user per host and container, read-only on the CIFS shares.
+# Password without commas (mount option separator). Not the old one from earth.
+vault_jellyfin_cifs_user: mars-jellyfin
+vault_jellyfin_cifs_password: CHANGE_ME

@@ -1,0 +1,9 @@
+---
+traefik_version: v3.7.17                 # v3.8.0 is still an RC (checked 2026-10-31)
+acme_email: "{{ vault_acme_email }}"
+traefik_dashboard_host: "traefik-{{ inventory_hostname }}.{{ home_domain }}"
+traefik_dashboard_user: "{{ admin_user }}"
+traefik_dashboard_htpasswd_hash: "{{ vault_traefik_dashboard_htpasswd_hash }}"
+traefik_dashboard_allow: "{{ admin_networks }}"
+traefik_metrics_port: 8082               # published on the host for Prometheus
+prometheus_host: earth

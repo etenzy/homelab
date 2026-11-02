@@ -1,0 +1,9 @@
+---
+# Same Docker network layout on every Docker host, so Traefik always has the same
+# addresses (Jellyfin known proxies, earth/real-client-ip).
+traefik_network:
+  name: traefik
+  subnet_v4: 172.16.10.0/24
+  subnet_v6: fd00:10:73:10dc::/64
+traefik_ipv4: 172.16.10.2
+traefik_ipv6: fd00:10:73:10dc::2

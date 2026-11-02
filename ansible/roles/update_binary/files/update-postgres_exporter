@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+#
+# update-postgres_exporter — auto-updater for the prometheus-community/postgres_exporter binary.
+#
+#   Thin wrapper around update-binary.sh. Health = postgres_exporter_build_info
+#   carries the expected version.
+#
+#   Usage:
+#     update-postgres_exporter                    update if a newer release exists
+#     update-postgres_exporter --check            report only, change nothing
+#     update-postgres_exporter --dry-run          do everything except install/restart
+#     update-postgres_exporter --force            reinstall even if already current
+#     update-postgres_exporter --version 0.20.1   pin a specific version
+#     update-postgres_exporter --no-restart       install only, leave the unit alone
+#
+#   Exit codes: 0 ok / nothing to do, 1 error, 2 update available (--check only)
+#
+# NAME, CHECKSUMS and friends are read by update-binary.sh.
+# shellcheck disable=SC2034
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. "${UPDATE_BINARY_LIB:-/usr/local/lib/update-binary/update-binary.sh}"
+
+NAME=postgres_exporter
+REPO="${REPO:-prometheus-community/postgres_exporter}"
+CHECKSUMS=sha256sums.txt
+METRICS_URL="${METRICS_URL:-http://127.0.0.1:9187/metrics}"
+
+# Built with promu, so the standard Prometheus arch list (same as chrony_exporter).
+map_arch() {
+  local m; m="$(uname -m)"
+  case "$m" in
+    x86_64|amd64)  echo "amd64"   ;;
+    aarch64|arm64) echo "arm64"   ;;
+    armv7l)        echo "armv7"   ;;
+    armv6l)        echo "armv6"   ;;
+    armv5*)        echo "armv5"   ;;
+    i386|i686)     echo "386"     ;;
+    riscv64)       echo "riscv64" ;;
+    ppc64le)       echo "ppc64le" ;;
+    s390x)         echo "s390x"   ;;
+    mips64el)      echo "mips64le";;
+    mipsel)        echo "mipsle"  ;;
+    *)             die "unsupported architecture: $m" ;;
+  esac
+}
+
+asset_name()   { echo "postgres_exporter-${1}.linux-${2}.tar.gz"; }
+asset_binary() { echo "postgres_exporter-${1}.linux-${2}/postgres_exporter"; }
+
+# postgres_exporter, version 0.20.1 (branch: HEAD, revision: ...)
+binary_version() { "$1" --version 2>&1 | head -1 | awk '{print $3}'; }
+
+# Same reasoning as redis_exporter: pg_up says whether POSTGRES answers, not
+# whether the EXPORTER works. Gating on it would roll back a good binary while
+# the database is down for maintenance. build_info also proves the restarted
+# process runs the new version.
+health_check() { metrics_match "^postgres_exporter_build_info{.*version=\"${1}\""; }
+
+update_binary_main "$@"

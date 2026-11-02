@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+PermitRootLogin no
+PasswordAuthentication {{ 'yes' if ssh_password_auth else 'no' }}
+KbdInteractiveAuthentication no
+AllowUsers {{ admin_user }}

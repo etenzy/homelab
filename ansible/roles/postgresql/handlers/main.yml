@@ -1,0 +1,33 @@
+---
+- name: Reload postgresql
+  ansible.builtin.systemd_service:
+    name: postgresql
+    state: reloaded
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# Blocky cannot write query logs during a restart; DNS keeps working.
+- name: Restart postgresql
+  ansible.builtin.systemd_service:
+    name: postgresql
+    state: restarted
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+  when: postgresql_allow_restart | bool
+
+- name: Restart postgresql pending
+  ansible.builtin.debug:
+    msg: >-
+      PostgreSQL needs a restart for the changed conf.d settings. Run
+      'systemctl restart postgresql' in a quiet moment, or rerun with
+      -e postgresql_allow_restart=true.
+  when: not (postgresql_allow_restart | bool)
+  listen: Restart postgresql
+
+- name: Restart postgres_exporter
+  ansible.builtin.systemd_service:
+    name: postgres_exporter
+    state: restarted
+    daemon_reload: true
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"

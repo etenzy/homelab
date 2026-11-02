@@ -1,0 +1,16 @@
+---
+# Secrets for sun only. Copy to vault.yml, fill in, then:
+#   ansible-vault encrypt inventory/host_vars/sun/vault.yml
+
+# PostgreSQL passwords per user (postgresql_users in vars.yml). Users without an
+# entry keep their current password; peer-only users need none.
+vault_postgresql_passwords:
+  grafana: CHANGE_ME      # same as GRAFANA_PG_BLOCKY_PASSWORD on earth
+  mroedel: CHANGE_ME
+
+# Blocky query log: entries whose question_name matches one of these LIKE
+# patterns are deleted by blocky-purge-domains.timer (window: blocky_purge_window,
+# default 4 hours). "%" = any characters. Empty or missing: no purge SQL, timer off.
+vault_blocky_purge_patterns:
+  - "%example%"           # substring
+  - "%example.org"        # domain and all subdomains

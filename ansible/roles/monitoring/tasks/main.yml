@@ -1,0 +1,18 @@
+---
+- name: Directory
+  ansible.builtin.file:
+    path: "{{ stacks_dir }}/monitoring"
+    state: directory
+    mode: "0755"
+
+- name: Compose
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ stacks_dir }}/monitoring/compose.yml"
+    mode: "0644"
+
+- name: Start stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ stacks_dir }}/monitoring"
+    pull: missing
+    wait: true

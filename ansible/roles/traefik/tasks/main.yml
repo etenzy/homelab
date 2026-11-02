@@ -1,0 +1,48 @@
+---
+- name: Directories
+  ansible.builtin.file:
+    path: "{{ stacks_dir }}/traefik/{{ item }}"
+    state: directory
+    mode: "0750"
+  loop: [config, config/dynamic]
+
+- name: Compose, .env and static configuration
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ stacks_dir }}/traefik/{{ item.dest }}"
+    mode: "{{ item.mode | default('0644') }}"
+  loop:
+    - { src: compose.yml.j2, dest: compose.yml }
+    - { src: env.j2, dest: .env, mode: "0600" }
+    - { src: traefik.yml.j2, dest: config/traefik.yml }
+  register: traefik_static
+
+# Traefik reloads the dynamic configuration live, no restart needed.
+- name: Dynamic configuration
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ stacks_dir }}/traefik/config/dynamic/{{ item }}"
+    mode: "0644"
+  loop: [middlewares.yml, block-paths.yml, dashboard.yml]
+
+- name: Dashboard password file
+  ansible.builtin.copy:
+    dest: "{{ stacks_dir }}/traefik/config/dashboard.htpasswd"
+    content: "{{ traefik_dashboard_user }}:{{ traefik_dashboard_htpasswd_hash }}\n"
+    mode: "0600"
+
+- name: File acme.json (an existing file is kept)
+  ansible.builtin.file:
+    path: "{{ stacks_dir }}/traefik/config/acme.json"
+    state: touch
+    mode: "0600"
+    modification_time: preserve
+    access_time: preserve
+
+- name: Start stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ stacks_dir }}/traefik"
+    pull: missing
+    recreate: "{{ 'always' if traefik_static.changed else 'auto' }}"
+    wait: true
+    wait_timeout: 120

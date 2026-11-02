@@ -1,0 +1,31 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Prometheus Chrony Exporter
+Documentation=https://github.com/SuperQ/chrony_exporter
+Wants=network-online.target
+After=network-online.target chrony.service
+
+[Service]
+User=_chrony
+Group=_chrony
+EnvironmentFile=-/etc/default/chrony_exporter
+ExecStart=/usr/local/bin/chrony_exporter \
+  --web.listen-address=:{{ chrony_exporter_port }} \
+  --chrony.address=unix:///run/chrony/chronyd.sock \
+  --collector.chmod-socket \
+  --collector.tracking \
+  --collector.sources \
+  --collector.sources.with-ntpdata \
+  --collector.sourcestats \
+  --collector.serverstats \
+  --collector.clients \
+  --collector.dns-lookups
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/run
+
+[Install]
+WantedBy=multi-user.target

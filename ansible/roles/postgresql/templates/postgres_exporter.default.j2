@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+# Unix socket + peer auth: OS user postgres_exporter = DB role, no password.
+# dbname={{ postgres_exporter_db }} so the per-table collectors see the log_entries partitions.
+DATA_SOURCE_NAME="host=/run/postgresql dbname={{ postgres_exporter_db }} user=postgres_exporter sslmode=disable"
+# Upper bound for one scrape (default 1m). Prometheus scrapes every 30s.
+PG_EXPORTER_COLLECTION_TIMEOUT=25s

@@ -1,0 +1,6 @@
+---
+# Binary node_exporter for hosts without Docker. Version: latest release via
+# update-node_exporter (weekly timer), not pinned here.
+node_exporter_port: 9100
+node_exporter_textfile_dir: /var/lib/prometheus/node-exporter   # Debian package default, used by update-doh-iplists
+node_exporter_systemd_units: (ssh|chrony|systemd-timesyncd)\.service

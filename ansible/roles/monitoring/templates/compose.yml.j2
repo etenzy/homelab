@@ -1,0 +1,41 @@
+# {{ ansible_managed }}
+# Exporters for Prometheus on {{ prometheus_host }}: node 9100{{ ", nvidia 9835" if nvidia_enabled else "" }}.
+services:
+  node-exporter:
+    image: prom/node-exporter:{{ node_exporter_version }}
+    container_name: node-exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+      - --collector.systemd
+      - --collector.systemd.unit-include=(docker|containerd|ssh|systemd-timesyncd|nvidia-persistenced)\.service
+      # The default excludes all of /var/lib/docker/. Docker-internal mounts stay
+      # excluded, volumes are kept so the NAS volumes (nas-*) are visible for the
+      # JellyfinNasMountMissing alert. Plain local volumes are no mounts, so they
+      # do not show up anyway.
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|run/credentials/.+|sys|var/lib/docker/(overlay2|containers|image|buildkit|plugins)/.+|var/lib/containers/storage/.+)($|/)
+    network_mode: host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro
+{% if nvidia_enabled %}
+
+  nvidia_gpu_exporter:
+    image: utkuozdemir/nvidia_gpu_exporter:{{ nvidia_gpu_exporter_version }}
+    container_name: nvidia_gpu_exporter
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ports:
+      - "9835:9835"
+{% endif %}

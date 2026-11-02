@@ -1,0 +1,77 @@
+---
+# sun: PC Engines apu3 (board v1.0), Debian 13.7 (trixie, checked 2026-11-01). DNS (Blocky), NTP (chrony/NTS),
+# PostgreSQL 17 (Blocky query log), Valkey. Runs natively, no Docker.
+# Address: 10.1.0.2 / fd00:10:1::2 (VLAN 1 Physical).
+
+# sun IS time.home.rdl.sh: chrony_server (NTS upstreams), no timesyncd client here.
+
+# --- PostgreSQL ------------------------------------------------------------------
+# listen_addresses (postgresql) and bindaddress (chrony) come from host_addresses
+# (group_vars/all), i.e. 10.1.0.2 and fd00:10:1::2 from sun's own facts.
+
+# Passwords: host_vars/sun/vault.yml -> vault_postgresql_passwords (name: password).
+postgresql_databases:
+  - name: blocky
+    owner: blocky          # already the owner (checked 2026-11-01)
+    extensions: [pg_stat_statements]
+
+# Internal VLANs for admin access. Guest (80) and Blackbox (90) deliberately left out.
+pg_admin_networks:
+  - 10.73.10.0/24         # Services
+  - fd00:10:73:10::/64
+  - 10.73.30.0/24         # Private
+  - fd00:10:73:30::/64
+  - 127.0.0.1/32          # psql -h localhost on sun
+  - ::1/128
+
+postgresql_users:
+  # Blocky (queryLog target postgres:///blocky?host=/run/postgresql&user=blocky)
+  # and its maintenance units connect over the socket as OS user blocky: peer,
+  # no password anywhere.
+  - name: blocky
+    comment: query log writer
+    hba:
+      - { type: local, databases: [blocky], method: peer }
+
+  # Grafana on earth (VLAN 10). Narrow to earth's /32 and /128 once fixed; Docker
+  # masquerades the container to the host address.
+  - name: grafana
+    attrs: NOSUPERUSER,NOCREATEDB,NOCREATEROLE,NOREPLICATION
+    conn_limit: 10
+    settings:
+      - { key: default_transaction_read_only, value: "on" }
+      - { key: statement_timeout, value: 30s }
+      - { key: idle_in_transaction_session_timeout, value: 60s }
+    grants:
+      - { type: database, objs: blocky, privs: CONNECT }
+      - { type: schema, db: blocky, objs: public, privs: USAGE }
+      # Grant on the partitioned parent is enough; new partitions need nothing extra.
+      - { type: table, db: blocky, objs: log_entries, privs: SELECT }
+    hba:
+      - { type: hostssl, databases: [blocky], addresses: [10.73.10.0/24, "fd00:10:73:10::/64"], method: scram-sha-256 }
+
+  # Michael: admin, socket (peer) on sun, TLS + password from the internal VLANs.
+  - name: "{{ admin_user }}"
+    attrs: SUPERUSER,CREATEDB,CREATEROLE,REPLICATION,BYPASSRLS
+    hba:
+      - { type: local, method: peer }
+      - { type: hostssl, addresses: "{{ pg_admin_networks }}", method: scram-sha-256 }
+
+# --- node_exporter (binary) --------------------------------------------------------
+node_exporter_systemd_units: >-
+  (ssh|chrony|chrony_exporter|blocky|postgresql@.*|postgres_exporter|valkey-server|redis_exporter|node_exporter|update-.*|blocky-.*)\.(service|timer)
+
+# --- Files fetched from sun (fetch-host-files.yml) ---------------------------------
+# Files or whole directories; missing ones are skipped. Encrypt the ones with secrets afterwards (README).
+host_files_fetch:
+  - /etc/blocky/config.yml
+  - /etc/blocky/allowlists
+  - /etc/blocky/denylists
+  - /etc/postgresql/17/main/postgresql.conf
+  # Reference only: pg_hba.conf is generated from postgresql_users now.
+  - /etc/postgresql/17/main/pg_hba.conf
+  # Reference only: valkey.conf stays the package default, own settings go to
+  # valkey_settings (conf.d/homelab.conf).
+  - /etc/valkey/valkey.conf
+  - /etc/valkey/users.acl
+  - /etc/redis_exporter/redis_exporter

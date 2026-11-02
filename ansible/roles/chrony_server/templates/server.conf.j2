@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+# Only authenticated sources may be used for synchronisation.
+authselectmode require
+# At least this many agreeing sources before the clock is set.
+minsources {{ chrony_minsources }}
+
+# Step hard on large offsets at startup, slew only afterwards.
+makestep 1.0 3
+clientloglimit {{ chrony_clientloglimit }}
+# Keep the RTC in sync, leap seconds from the tz database.
+rtcsync
+leapsectz right/UTC
+
+# Server mode
+{% for a in chrony_bind_addresses %}
+bindaddress {{ a }}
+{% endfor %}
+{% for n in chrony_allow %}
+allow {{ n }}
+{% endfor %}
+# Keep serving time when the upstreams are unreachable.
+local stratum {{ chrony_orphan_stratum }} orphan

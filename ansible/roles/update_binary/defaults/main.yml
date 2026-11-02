@@ -1,0 +1,12 @@
+---
+# Called per tool via include_role with update_binary_tool set, e.g.
+#   update_binary_tool:
+#     name: chrony_exporter                 # wrapper files/update-<name> must exist
+#     repo: SuperQ/chrony_exporter          # for the unit's Documentation=
+#     after: chrony.service                 # optional, extra After= for the update unit
+#     on_calendar: Sun 04:00                # optional
+#     randomized_delay: 4h                  # optional
+#     env: {}                               # optional, written to /etc/default/update-<name>
+update_binary_lib_dir: /usr/local/lib/update-binary
+update_binary_on_calendar: Sun 04:00
+update_binary_randomized_delay: 4h

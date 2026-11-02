@@ -1,0 +1,82 @@
+---
+# Driver from Debian (open kernel modules, Ampere), headless. Details: earth/rtx-a400/README.md
+- name: Driver, GSP firmware, encoder/decoder libs
+  ansible.builtin.apt:
+    name:
+      - linux-headers-amd64
+      - nvidia-open-kernel-dkms
+      - firmware-nvidia-gsp
+      - nvidia-smi
+      - nvidia-persistenced
+      - libcuda1
+      - libnvcuvid1
+      - libnvidia-encode1
+      - mokutil
+  register: nvidia_driver
+
+# Many UEFI machines (e.g. HP) ship with Secure Boot enabled. DKMS signs the module with
+# /var/lib/dkms/mok.pub; without an enrolled key it will not load.
+- name: Secure Boot state
+  ansible.builtin.command: mokutil --sb-state
+  register: nvidia_sb
+  changed_when: false
+  failed_when: false
+
+- name: DKMS key enrolled?
+  ansible.builtin.command: mokutil --test-key /var/lib/dkms/mok.pub
+  register: nvidia_mok
+  changed_when: false
+  failed_when: false
+  when: "'SecureBoot enabled' in nvidia_sb.stdout"
+
+- name: Abort if Secure Boot is on and the key is missing
+  ansible.builtin.fail:
+    msg: |
+      Secure Boot is enabled, but the DKMS key is not enrolled.
+        sudo mokutil --import /var/lib/dkms/mok.pub   # set a one-time password
+        sudo reboot                                   # MOK Manager: Enroll MOK -> Continue -> password
+      Then run the playbook again. Alternatively, disable Secure Boot in F10.
+  when:
+    - "'SecureBoot enabled' in nvidia_sb.stdout"
+    - "'already enrolled' not in nvidia_mok.stdout"
+
+- name: Reboot after driver install (nouveau out, nvidia in)
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  when: nvidia_driver.changed and nvidia_reboot_after_install
+
+- name: Service nvidia-persistenced
+  ansible.builtin.systemd_service:
+    name: nvidia-persistenced
+    enabled: true
+    state: started
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Check that nvidia-smi works
+  ansible.builtin.command: nvidia-smi -L
+  register: nvidia_smi
+  changed_when: false
+
+- name: GPU
+  ansible.builtin.debug:
+    msg: "{{ nvidia_smi.stdout }}"
+
+- name: NVIDIA Container Toolkit repo
+  ansible.builtin.deb822_repository:
+    name: nvidia-container-toolkit
+    uris: https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH)
+    suites: /
+    signed_by: https://nvidia.github.io/libnvidia-container/gpgkey
+  register: nvidia_repo
+
+- name: NVIDIA Container Toolkit
+  ansible.builtin.apt:
+    name:
+      - nvidia-container-toolkit={{ nvidia_container_toolkit_version }}
+      - nvidia-container-toolkit-base={{ nvidia_container_toolkit_version }}
+      - libnvidia-container-tools={{ nvidia_container_toolkit_version }}
+      - libnvidia-container1={{ nvidia_container_toolkit_version }}
+    update_cache: "{{ nvidia_repo.changed }}"
+    allow_downgrade: true
+# The docker role adds the "nvidia" runtime to daemon.json (instead of nvidia-ctk).

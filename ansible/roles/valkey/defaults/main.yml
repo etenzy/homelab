@@ -1,0 +1,21 @@
+---
+# Valkey from the Debian package. valkey.conf stays the package default; the role
+# only appends an include line, and everything homelab-specific goes into
+# conf.d/homelab.conf (read last, so it wins). The ACL file comes from host_files
+# (vault-encrypted, contains password hashes).
+valkey_package: valkey-server
+valkey_service: valkey-server
+valkey_config: /etc/valkey/valkey.conf
+valkey_include_dir: /etc/valkey/conf.d
+# Loopback plus the host's addresses (group_vars/all). "-" = optional: Valkey
+# starts even if the address is missing.
+valkey_bind: "{{ ['127.0.0.1', '-::1'] + (host_addresses | default([]) | map('regex_replace', '^', '-') | list) }}"
+valkey_port: 6379
+valkey_aclfile: /etc/valkey/users.acl
+valkey_aclfile_src: "{{ host_files_dir }}{{ valkey_aclfile }}"
+# Further settings for homelab.conf, e.g. { maxmemory: 256mb, maxmemory-policy: allkeys-lru }
+valkey_settings: {}
+
+# redis_exporter: env file with REDIS_ADDR / REDIS_USER / REDIS_PASSWORD from host_files.
+redis_exporter_port: 9121
+redis_exporter_env_src: "{{ host_files_dir }}/etc/redis_exporter/redis_exporter"

@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Prometheus Node Exporter
+Documentation=https://github.com/prometheus/node_exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=node_exporter
+Group=node_exporter
+ExecStart=/usr/local/bin/node_exporter \
+  --web.listen-address=:{{ node_exporter_port }} \
+  --collector.systemd \
+  "--collector.systemd.unit-include={{ node_exporter_systemd_units | replace('\\', '\\\\') }}" \
+  --collector.textfile.directory={{ node_exporter_textfile_dir }}
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

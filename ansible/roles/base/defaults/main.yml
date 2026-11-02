@@ -1,0 +1,34 @@
+---
+timezone: Europe/Berlin                  # also set in group_vars/all
+base_debian_versions: ["13"]
+debian_mirror: https://deb.debian.org/debian
+ntp_servers: []                          # timesyncd NTP=; empty: Debian pool
+base_packages:
+  - ca-certificates
+  - curl
+  - jq
+  - rsync
+  - htop
+  - ncdu
+  - tmux
+  - git
+  - unattended-upgrades
+
+# --- Network (systemd-networkd) ----------------------------------------------------
+# Off by default: the host keeps its current network setup (usually ifupdown).
+# When enabled, the primary interface (matched by MAC) is configured by
+# systemd-networkd and /etc/network/interfaces is reduced to loopback.
+network_manage: false
+network_interface: "{{ ansible_facts['default_ipv4']['interface'] | default('') }}"
+network_ipv4: dhcp                       # dhcp | static
+network_ipv4_address: ""                 # static: 10.73.10.5/24
+network_ipv4_gateway: ""                 # static: 10.73.10.1
+network_ipv6_accept_ra: true             # router advertisements: default route, prefixes, RDNSS
+network_ipv6_slaac: false                # addresses from RA prefixes (ULA/GUA) via SLAAC
+network_ipv6_token: ""                   # e.g. "::5": SLAAC with a fixed interface ID (needs slaac)
+network_ipv6_privacy: false              # temporary privacy addresses (clients only)
+network_ipv6_addresses: []               # static addresses, e.g. ["fd00:10:73:10::5/64"]
+network_mtu: ""                          # e.g. 9000; empty = leave as is (1500)
+# Static /etc/resolv.conf; empty = leave the file alone.
+network_dns: []                          # e.g. [10.1.0.2, "fd00:10:1::2"]
+network_dns_search: ["{{ home_domain | default('') }}"]

@@ -1,0 +1,62 @@
+---
+# Host alerts for all hosts scraped by the exporters from this Ansible setup.
+# GPU alerts: earth/rtx-a400/prometheus/nvidia-alerts.yml (job nvidia-gpu).
+# Traefik: earth/traefik-metrics/prometheus/.
+groups:
+  - name: homelab-hosts
+    rules:
+      - alert: HostTargetDown
+        expr: up{job=~"node|nvidia-gpu|jellyfin"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} on {{ $labels.instance }} is unreachable"
+
+      - alert: HostFilesystemLow
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"nfs.*|cifs|tmpfs"}
+            / node_filesystem_size_bytes < 0.10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.mountpoint }} on {{ $labels.instance }} has only {{ $value | humanizePercentage }} free"
+
+      - alert: HostMemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }}: only {{ $value | humanizePercentage }} RAM available"
+
+      # Filtered via --collector.systemd.unit-include (docker, nvidia-persistenced, NAS mounts ...).
+      - alert: HostSystemdUnitFailed
+        expr: node_systemd_unit_state{state="failed"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $labels.name }} has failed"
+
+      - alert: HostHardwareHot
+        expr: node_hwmon_temp_celsius{chip=~".*coretemp.*|.*nvme.*"} > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $labels.chip }}/{{ $labels.sensor }} at {{ $value }} °C"
+
+  - name: homelab-jellyfin
+    rules:
+      # NAS shares are Docker volumes nas-*; they are only mounted while Jellyfin runs.
+      # 4 = number of media_mounts in host_vars/mars/vars.yml.
+      - alert: JellyfinNasMountMissing
+        expr: |
+          (count(node_filesystem_size_bytes{instance="mars.home.rdl.sh",mountpoint=~"/var/lib/docker/volumes/nas-.+/_data"}) or vector(0)) < 4
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "mars: only {{ $value }} of 4 NAS mounts active"

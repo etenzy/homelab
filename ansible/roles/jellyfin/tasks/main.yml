@@ -1,0 +1,51 @@
+---
+- name: Group jellyfin
+  ansible.builtin.group:
+    name: jellyfin
+    gid: "{{ jellyfin_uid }}"
+    system: true
+
+- name: User jellyfin (runs inside the container)
+  ansible.builtin.user:
+    name: jellyfin
+    uid: "{{ jellyfin_uid }}"
+    group: jellyfin
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+# NAS shares are Docker volumes (local driver) defined in compose.yml: Docker
+# mounts them when Jellyfin starts. No host mounts, no fstab, no helper packages.
+
+# --- Stack ---------------------------------------------------------------------
+- name: Directories
+  ansible.builtin.file:
+    path: "{{ stacks_dir }}/jellyfin/{{ item }}"
+    state: directory
+    owner: "{{ jellyfin_uid if item else omit }}"
+    group: "{{ jellyfin_uid if item else omit }}"
+    mode: "0750"
+  loop: ["", config, cache]
+
+- name: Compose and .env
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ stacks_dir }}/jellyfin/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: compose.yml.j2, dest: compose.yml, mode: "0644" }
+    - { src: env.j2, dest: .env, mode: "0600" }
+
+# Volume options are fixed once a volume exists. If media_mounts changed, remove
+# the old volumes first: docker compose down && docker volume rm nas-<name>.
+- name: Start stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ stacks_dir }}/jellyfin"
+    pull: missing
+    wait: true
+    wait_timeout: 300
+
+- name: NVENC visible in the container
+  ansible.builtin.command: docker exec jellyfin nvidia-smi -L
+  changed_when: false
+  when: nvidia_enabled

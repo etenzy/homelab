@@ -1,0 +1,7 @@
+---
+# Homelab-wide secrets. Copy to vault.yml, fill in, then:
+#   ansible-vault encrypt inventory/group_vars/all/vault.yml
+vault_acme_email: CHANGE_ME@rdl.sh                     # same as on earth
+vault_cf_dns_api_token: CHANGE_ME                      # Cloudflare: Zone -> DNS -> Edit (for rdl.sh)
+# htpasswd -nB mroedel | cut -d: -f2   (hash only, do not double the "$")
+vault_traefik_dashboard_htpasswd_hash: "$2y$05$CHANGE_ME"

@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+# Needs a PostgreSQL RESTART (shared_preload_libraries), a reload is not enough.
+# The last setting wins, it does not append: list every library here.
+shared_preload_libraries = 'pg_stat_statements'
+
+# Distinct normalized statements kept in shared memory (default 5000).
+pg_stat_statements.max = 5000
+# Only top-level statements; plpgsql functions (partition maintenance) count once.
+pg_stat_statements.track = top
+pg_stat_statements.track_utility = off
+
+# Fills the exporter's block_read/write_seconds_total.
+track_io_timing = on

@@ -1,0 +1,70 @@
+---
+- name: Docker CE repo
+  ansible.builtin.deb822_repository:
+    name: docker
+    uris: https://download.docker.com/linux/debian
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: stable
+    signed_by: https://download.docker.com/linux/debian/gpg
+  register: docker_repo
+
+- name: Docker Engine + Compose
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+      - python3-requests          # for community.docker
+    update_cache: "{{ docker_repo.changed }}"
+
+- name: Docker daemon.json
+  ansible.builtin.template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    validate: dockerd --validate --config-file %s
+  notify: Restart docker
+
+# NAS shares are Docker volumes now; the remote-fs ordering is no longer needed.
+- name: No remote-fs drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d/10-remote-fs.conf
+    state: absent
+  notify: Restart docker
+
+- name: Admin in group docker
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    groups: [docker]
+    append: true
+  when: admin_in_docker_group
+
+- name: Run handlers now
+  ansible.builtin.meta: flush_handlers
+
+- name: Docker is running
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: true
+    state: started
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+# Dual stack, so IPv6 clients keep their real source IP (earth/real-client-ip).
+- name: Network traefik
+  when: traefik_network is defined
+  community.docker.docker_network:
+    name: "{{ traefik_network.name }}"
+    driver: bridge
+    enable_ipv6: true
+    ipam_config:
+      - subnet: "{{ traefik_network.subnet_v4 }}"
+      - subnet: "{{ traefik_network.subnet_v6 }}"
+
+- name: Stack directory
+  ansible.builtin.file:
+    path: "{{ stacks_dir }}"
+    state: directory
+    mode: "0755"

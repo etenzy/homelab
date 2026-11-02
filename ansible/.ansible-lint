@@ -1,0 +1,8 @@
+---
+exclude_paths:
+  - prometheus/   # snippets for Prometheus on earth, not Ansible
+  - "**/vault.yml.example"
+skip_list:
+  # Shared homelab vars (admin_user, home_domain, nvidia_enabled, media_mounts ...)
+  # are used across roles on purpose and therefore carry no role prefix.
+  - var-naming[no-role-prefix]

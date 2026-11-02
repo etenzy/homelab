@@ -1,0 +1,13 @@
+---
+# docker-ce 29.9.2, compose plugin 5.6.1 (download.docker.com, trixie). Not pinned,
+# updates come through apt.
+stacks_dir: /opt/stacks
+admin_in_docker_group: true              # docker group = root privileges, on purpose
+nvidia_enabled: false
+# traefik_network is set in group_vars/docker_hosts; the network is only created when set.
+# MTU for the default bridge and every new bridge network (compose included).
+# Only needed when the host MTU is BELOW 1500. With jumbo frames on the host,
+# leave it empty: container traffic goes to 1500-MTU clients anyway, and NFS
+# volumes are mounted by the host kernel, so they use the host MTU. Existing
+# networks keep their MTU until recreated.
+docker_mtu: ""

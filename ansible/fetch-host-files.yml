@@ -1,0 +1,36 @@
+---
+# Copies the live config files listed in host_vars/<host>/vars.yml (host_files_fetch)
+# to host_files/<host>/<absolute path>. Run once before the first site.yml run
+# on a host that was set up by hand, then review and vault-encrypt secrets.
+# Entries can be files or directories; directories are fetched recursively.
+#   ansible-playbook fetch-host-files.yml --limit sun
+- name: Fetch live config files
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Check what each entry is
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        get_checksum: false
+      loop: "{{ host_files_fetch }}"
+      register: fetch_stat
+
+    - name: Find files in directory entries
+      ansible.builtin.find:
+        paths: "{{ fetch_stat.results | selectattr('stat.isdir', 'defined') | selectattr('stat.isdir') | map(attribute='item') | list }}"
+        recurse: true
+        file_type: file
+        hidden: true
+      register: fetch_dir_files
+      when: fetch_stat.results | selectattr('stat.isdir', 'defined') | selectattr('stat.isdir') | list | length > 0
+
+    - name: Fetch files
+      ansible.builtin.fetch:
+        src: "{{ item }}"
+        dest: "{{ inventory_dir }}/../host_files/"
+        fail_on_missing: false
+      loop: >-
+        {{ ((fetch_stat.results | rejectattr('stat.isdir', 'defined') | map(attribute='item') | list)
+           + (fetch_stat.results | selectattr('stat.isdir', 'defined') | rejectattr('stat.isdir') | map(attribute='item') | list)
+           + (fetch_dir_files.files | default([]) | map(attribute='path') | list)) | unique }}

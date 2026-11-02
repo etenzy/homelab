@@ -1,0 +1,76 @@
+---
+# PostgreSQL, Debian cluster layout (/etc/postgresql/<ver>/main).
+postgresql_version: 17
+# false: Debian's own package (trixie ships 17). true: apt.postgresql.org; the
+# meta packages are then pinned to Debian so PGDG cannot pull in a newer major.
+postgresql_pgdg: false
+postgresql_conf_dir: /etc/postgresql/{{ postgresql_version }}/main
+postgresql_listen_addresses: "{{ ['localhost'] + host_addresses | default([]) }}"
+# postgresql.conf is taken from host_files when present (fetched from the host).
+# The conf.d snippets below are read after postgresql.conf and win for the same
+# setting. pg_hba.conf is generated from postgresql_users (hba) and
+# postgresql_hba_extra.
+postgresql_conf_src: "{{ host_files_dir }}{{ postgresql_conf_dir }}/postgresql.conf"
+postgresql_stat_statements: true
+# Changes to listen_addresses / shared_preload_libraries need a restart.
+# false: Ansible only reports that a restart is pending.
+postgresql_allow_restart: false
+
+# --- Databases, users, pg_hba (set in host_vars) ----------------------------------
+# Databases:
+#   - name: blocky
+#     owner: blocky                 # optional; changes the owner if different
+#     extensions: [pg_stat_statements]
+#     state: present                # absent drops the database
+postgresql_databases: []
+
+# Users:
+#   - name: grafana
+#     attrs: NOSUPERUSER,NOCREATEDB  # optional; omitted = leave as is
+#     conn_limit: 10                 # optional
+#     groups: [pg_monitor]           # optional role memberships
+#     settings:                      # ALTER ROLE ... SET
+#       - { key: statement_timeout, value: 30s }
+#     grants:                        # db is required except for type database
+#       - { type: database, objs: blocky, privs: CONNECT }
+#       - { type: table, db: blocky, objs: log_entries, privs: SELECT }
+#     hba:                           # pg_hba.conf lines for this user
+#       - { type: local, databases: [blocky], method: peer }
+#       - { type: hostssl, databases: [blocky], addresses: [10.73.10.0/24], method: scram-sha-256 }
+#     state: present                 # absent drops the role (and its hba lines)
+# Passwords never go here: postgresql_passwords maps user name -> password.
+# Users without an entry keep their current password.
+postgresql_users: []
+postgresql_passwords: "{{ vault_postgresql_passwords | default({}) }}"
+
+# Additional raw pg_hba.conf lines (after the user lines), same keys as hba
+# entries plus users (list, default all) and comment.
+postgresql_hba_extra: []
+
+# postgres_exporter: own role, peer auth over the socket, created by the role.
+postgres_exporter_enabled: true
+postgres_exporter_db: "{{ (postgresql_databases | map(attribute='name') | list + ['postgres']) | first }}"
+postgres_exporter_port: 9187
+postgres_exporter_user:
+  name: postgres_exporter
+  attrs: NOSUPERUSER,NOCREATEDB,NOCREATEROLE,NOREPLICATION
+  conn_limit: 3
+  settings:
+    - { key: search_path, value: "pg_catalog, public" }
+    - { key: default_transaction_read_only, value: "on" }
+    - { key: statement_timeout, value: 20s }
+  groups: [pg_monitor]
+  grants:
+    - { type: database, objs: "{{ postgres_exporter_db }}", privs: CONNECT }
+  hba:
+    - { type: local, databases: ["{{ postgres_exporter_db }}"], method: peer }
+
+# Internal helpers.
+postgresql_all_users: "{{ postgresql_users + ([postgres_exporter_user] if postgres_exporter_enabled else []) }}"
+postgresql_present_users: >-
+  {{ postgresql_all_users | selectattr('state', 'undefined') | list
+     + postgresql_all_users | selectattr('state', 'defined') | selectattr('state', 'ne', 'absent') | list }}
+postgresql_absent_users: "{{ postgresql_all_users | selectattr('state', 'defined') | selectattr('state', 'eq', 'absent') | list }}"
+postgresql_present_databases: >-
+  {{ postgresql_databases | selectattr('state', 'undefined') | list
+     + postgresql_databases | selectattr('state', 'defined') | selectattr('state', 'ne', 'absent') | list }}

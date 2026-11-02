@@ -1,0 +1,40 @@
+# {{ ansible_managed }}
+# Dashboard at https://{{ traefik_dashboard_host }}/dashboard/
+http:
+  routers:
+    traefik-dashboard:
+      entryPoints: [websecure]
+      rule: Host(`{{ traefik_dashboard_host }}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+      service: api@internal
+      middlewares: [dashboard-allowlist, dashboard-auth]
+
+    traefik-dashboard-root:
+      entryPoints: [websecure]
+      rule: Host(`{{ traefik_dashboard_host }}`) && Path(`/`)
+      service: noop@internal
+      middlewares: [dashboard-allowlist, dashboard-root-redirect]
+
+    traefik-dashboard-http:
+      entryPoints: [web]
+      rule: Host(`{{ traefik_dashboard_host }}`)
+      service: noop@internal
+      middlewares: [redirect-to-https]
+
+  middlewares:
+    dashboard-root-redirect:
+      redirectRegex:
+        regex: ^https://([^/]+)/?$
+        replacement: https://${1}/dashboard/
+        permanent: false
+
+    dashboard-allowlist:
+      ipAllowList:
+        sourceRange:
+{% for net in traefik_dashboard_allow %}
+          - {{ net }}
+{% endfor %}
+
+    dashboard-auth:
+      basicAuth:
+        usersFile: /etc/traefik/dashboard.htpasswd
+        removeHeader: true
