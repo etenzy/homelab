@@ -5,6 +5,21 @@
 
 # sun IS time.home.rdl.sh: chrony_server (NTS upstreams), no timesyncd client here.
 
+# --- Network (base role) ----------------------------------------------------------
+# Off: sun is the DNS/NTP server, switch only after checking on the console.
+# Check before enabling: how 10.1.0.2 is assigned today (DHCP reservation or
+# static -> network_ipv4: static + _address/_gateway).
+network_manage: false
+network_ipv4: dhcp                       # static: + network_ipv4_address / _gateway
+# network_ipv4_address: 10.1.0.2/24
+# network_ipv4_gateway: 10.1.0.1
+network_ipv6_addresses: ["fd00:10:1::2/64"]
+network_ipv6_accept_ra: true             # default route + RDNSS from the UDM
+network_ipv6_slaac: false                # true: own GUA from the RA prefix (no NAT66 via UDM)
+network_ipv6_token: ""                   # with slaac: fixed interface ID, e.g. "::5"
+network_ipv6_privacy: false              # with slaac: temporary addresses for outgoing traffic
+network_dns: []                          # empty: leave /etc/resolv.conf alone
+
 # --- PostgreSQL ------------------------------------------------------------------
 # listen_addresses (postgresql) and bindaddress (chrony) come from host_addresses
 # (group_vars/all), i.e. 10.1.0.2 and fd00:10:1::2 from sun's own facts.

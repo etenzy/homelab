@@ -2,6 +2,25 @@
 # mars: HP EliteDesk 800 G3 SFF (i7-7700, 32 GB, NVMe, RTX A400, UEFI), Debian 13.
 # Jellyfin host. Only what differs from group_vars and role defaults lives here.
 
+# --- Network (base role) ----------------------------------------------------------
+# Off until mars' address is fixed. Then e.g.:
+#   network_manage: true
+#   network_ipv6_addresses: ["fd00:10:73:10::<id>/64"]
+# MTU: 9000 only if switch port, NAS and UDM VLAN support jumbo frames.
+# docker_mtu only when the host MTU is below 1500 (roles/docker/defaults).
+network_manage: false
+network_ipv4: dhcp                       # static: + network_ipv4_address / _gateway
+# network_ipv4_address: ""                # e.g. 10.73.10.5/24
+# network_ipv4_gateway: ""                # e.g. 10.73.10.1
+network_ipv6_addresses: []
+network_ipv6_accept_ra: true             # default route + RDNSS from the UDM
+network_ipv6_slaac: false                # true: own GUA from the RA prefix (no NAT66 via UDM)
+network_ipv6_token: ""                   # with slaac: fixed interface ID, e.g. "::5"
+network_ipv6_privacy: false              # with slaac: temporary addresses for outgoing traffic
+network_mtu: ""
+network_dns: []                          # empty: leave /etc/resolv.conf alone
+docker_mtu: ""
+
 # --- Jellyfin ------------------------------------------------------------------
 jellyfin_host: "jellyfin.{{ home_domain }}"
 jellyfin_exporter_token: "{{ vault_jellyfin_exporter_token }}"

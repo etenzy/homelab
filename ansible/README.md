@@ -63,6 +63,18 @@ nicht gegen den Updater arbeitet. Neu ist `update-node_exporter`, nach dem Muste
 `update-chrony_exporter`.
 ## Neuen Host aufnehmen
 
+Am einfachsten mit `scripts/new-host.sh` aus dem Repo-Root:
+
+```bash
+scripts/new-host.sh -l                                   # verfügbare Gruppen
+scripts/new-host.sh -n -g docker_hosts -d "…" <name>     # Probelauf
+scripts/new-host.sh -g docker_hosts -d "…" <name>
+```
+
+Das Script trägt den Host in `debian_hosts` und die angegebenen Gruppen ein, legt
+`host_vars/<name>/vars.yml` (Netzwerk-Block) und `vault.yml.example` an und gibt am Ende die
+Voraussetzungen für das Onboarding (Debian-Netinstall) als Checkliste aus. Von Hand:
+
 1. Debian 13 installieren (ohne Desktop, mit SSH-Server, User `mroedel`), DHCP-Reservierung
    und DNS-Eintrag `<name>.home.rdl.sh` in UniFi anlegen.
 2. Den Namen in `inventory/hosts.yml` in die passenden Gruppen eintragen.

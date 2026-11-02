@@ -16,22 +16,6 @@ host_files_fetch: []
 # --- Derived from group membership ---------------------------------------------
 nvidia_enabled: "{{ 'gpu_hosts' in group_names }}"
 
-# --- Network (base role, systemd-networkd) ----------------------------------------
-# Homelab defaults for the primary interface. Off until checked per host; the
-# host-specific parts (static addresses) go to host_vars, e.g.
-#   network_manage: true
-#   network_ipv6_addresses: ["fd00:10:73:10::5/64"]
-network_manage: false
-network_ipv4: dhcp                       # reservations on the UDM; static: + _address/_gateway
-network_ipv6_accept_ra: true             # default route + RDNSS from the UDM
-network_ipv6_slaac: false                # servers: fixed ULA instead of SLAAC addresses
-network_ipv6_token: ""                   # with slaac: fixed interface ID, e.g. "::5"
-network_ipv6_privacy: false              # no temporary addresses on servers
-network_ipv6_addresses: []
-network_mtu: ""                          # 9000 only if port, NAS and UDM VLAN support jumbo
-network_dns: []                          # empty: leave /etc/resolv.conf alone
-docker_mtu: ""                           # only for host MTU < 1500 (roles/docker/defaults)
-
 # --- Base ----------------------------------------------------------------------
 timezone: Europe/Berlin
 ntp_servers: ["time.{{ home_domain }}"]   # timesyncd on clients; chrony on sun serves it
