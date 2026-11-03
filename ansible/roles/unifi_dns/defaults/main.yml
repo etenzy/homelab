@@ -1,0 +1,15 @@
+---
+# Local DNS records (UniFi "DNS policies"). Fields as in the API:
+#   A_RECORD: ipv4Address | AAAA_RECORD: ipv6Address | CNAME_RECORD: targetDomain
+#   TXT_RECORD: text | MX_RECORD: mailServerDomain, priority
+#   SRV_RECORD: serverDomain, service, protocol, port, priority, weight
+#   FORWARD_DOMAIN: ipAddress (conditional forwarder)
+# enabled defaults to true, ttlSeconds to unifi_dns_default_ttl (types that have a TTL).
+# A record is identified by type + domain + value (CNAME: type + domain only), so changing
+# the value of an A/AAAA/TXT... record replaces it, a CNAME is updated in place.
+unifi_dns_manage: false             # true once unifi_dns_records is filled in
+unifi_dns_records: []
+unifi_dns_default_ttl: 3600
+# Delete DNS policies that are not in unifi_dns_records. Off by default so records created
+# in the UI survive until they have been moved into the inventory.
+unifi_dns_purge: false

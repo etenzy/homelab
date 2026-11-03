@@ -1,0 +1,4 @@
+---
+- name: Local DNS records
+  ansible.builtin.include_tasks: records.yml
+  when: unifi_dns_manage | bool

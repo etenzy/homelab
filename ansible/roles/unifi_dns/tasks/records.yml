@@ -1,0 +1,120 @@
+---
+- name: Read DNS policies
+  ansible.builtin.uri:
+    url: "{{ unifi_site_base }}/dns/policies?limit={{ unifi_page_limit }}"
+    headers: "{{ unifi_headers }}"
+    validate_certs: "{{ unifi_validate_certs | bool }}"
+    ca_path: "{{ unifi_ca_file or omit }}"
+  check_mode: false
+  register: unifi_dns_current
+
+- name: Make sure all DNS policies were read
+  ansible.builtin.assert:
+    that: unifi_dns_current.json.totalCount | int <= unifi_dns_current.json.count | int
+    fail_msg: "{{ unifi_dns_current.json.totalCount }} DNS policies, only {{ unifi_dns_current.json.count }} read"
+    quiet: true
+
+- name: Validate unifi_dns_records
+  ansible.builtin.assert:
+    that:
+      - item.type is defined and item.type in unifi_dns_value_keys
+      - item.domain is defined
+      - unifi_dns_value_keys[item.type] in item
+      - item.keys() | difference(unifi_dns_allowed_keys[item.type]) | length == 0
+    fail_msg: >-
+      Invalid DNS record {{ item }}. Allowed fields for {{ item.type | default('?') }}:
+      {{ unifi_dns_allowed_keys[item.type] | default(unifi_dns_value_keys.keys() | list) | join(', ') }}
+    quiet: true
+  loop: "{{ unifi_dns_records }}"
+  loop_control:
+    label: "{{ item.type | default('?') }} {{ item.domain | default('?') }}"
+
+# Identity of a record: type | domain | value (case-insensitive, trailing dot ignored); for
+# types the UDM allows only once per name (CNAME) just type | domain. Desired records get the
+# enabled/ttlSeconds defaults; a record is updated when any field set here differs.
+- name: Compare desired and current DNS policies
+  ansible.builtin.set_fact:
+    unifi_dns_plan_json: >-
+      {%- set ns = namespace(current={}, keys=[], create=[], update=[], delete=[]) -%}
+      {%- for r in unifi_dns_current.json.data if r.type in unifi_dns_value_keys -%}
+      {%-   set value = '' if r.type in unifi_dns_single_types else r[unifi_dns_value_keys[r.type]] -%}
+      {%-   set key = r.type ~ '|' ~ (r.domain | lower) ~ '|' ~ (value | string | lower | regex_replace('\\.$', '')) -%}
+      {%-   set ns.current = ns.current | combine({key: r}) -%}
+      {%- endfor -%}
+      {%- for d in unifi_dns_records -%}
+      {%-   set ttl = {'ttlSeconds': unifi_dns_default_ttl} if d.type in unifi_dns_ttl_types else {} -%}
+      {%-   set body = {'enabled': true} | combine(ttl) | combine(d) -%}
+      {%-   set value = '' if d.type in unifi_dns_single_types else d[unifi_dns_value_keys[d.type]] -%}
+      {%-   set key = d.type ~ '|' ~ (d.domain | lower) ~ '|' ~ (value | string | lower | regex_replace('\\.$', '')) -%}
+      {%-   set ns.keys = ns.keys + [key] -%}
+      {%-   if key not in ns.current -%}
+      {%-     set ns.create = ns.create + [body] -%}
+      {%-   else -%}
+      {%-     set cur = ns.current[key] -%}
+      {%-     set diff = namespace(found=false) -%}
+      {%-     for k, v in body.items() -%}
+      {%-       set have = cur[k] | default(none) | string | lower | regex_replace('\\.$', '') -%}
+      {%-       if have != (v | string | lower | regex_replace('\\.$', '')) -%}{%- set diff.found = true -%}{%- endif -%}
+      {%-     endfor -%}
+      {%-     if diff.found -%}{%- set ns.update = ns.update + [{'id': cur.id, 'body': body}] -%}{%- endif -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {%- if unifi_dns_purge | bool -%}
+      {%-   for key, r in ns.current.items() if key not in ns.keys -%}
+      {%-     set ns.delete = ns.delete + [{'id': r.id, 'type': r.type, 'domain': r.domain}] -%}
+      {%-   endfor -%}
+      {%- endif -%}
+      {{ {'to_create': ns.create, 'to_update': ns.update, 'to_delete': ns.delete} | to_json }}
+
+- name: Planned DNS changes
+  ansible.builtin.debug:
+    msg:
+      create: "{{ plan.to_create | map(attribute='domain') | list }}"
+      update: "{{ plan.to_update | map(attribute='body.domain') | list }}"
+      delete: "{{ plan.to_delete | map(attribute='domain') | list }}"
+  # Reports "changed" in --check, where the write tasks below are skipped.
+  changed_when: ansible_check_mode and (plan.to_create + plan.to_update + plan.to_delete) | length > 0
+  vars:
+    plan: "{{ unifi_dns_plan_json | from_json }}"
+
+- name: Create DNS policies
+  ansible.builtin.uri:
+    url: "{{ unifi_site_base }}/dns/policies"
+    method: POST
+    body: "{{ item }}"
+    body_format: json
+    headers: "{{ unifi_headers }}"
+    validate_certs: "{{ unifi_validate_certs | bool }}"
+    ca_path: "{{ unifi_ca_file or omit }}"
+    status_code: [200, 201]
+  changed_when: true
+  loop: "{{ (unifi_dns_plan_json | from_json).to_create }}"
+  loop_control:
+    label: "{{ item.type }} {{ item.domain }}"
+
+- name: Update DNS policies
+  ansible.builtin.uri:
+    url: "{{ unifi_site_base }}/dns/policies/{{ item.id }}"
+    method: PUT
+    body: "{{ item.body }}"
+    body_format: json
+    headers: "{{ unifi_headers }}"
+    validate_certs: "{{ unifi_validate_certs | bool }}"
+    ca_path: "{{ unifi_ca_file or omit }}"
+  changed_when: true
+  loop: "{{ (unifi_dns_plan_json | from_json).to_update }}"
+  loop_control:
+    label: "{{ item.body.type }} {{ item.body.domain }}"
+
+- name: Delete DNS policies that are not in unifi_dns_records
+  ansible.builtin.uri:
+    url: "{{ unifi_site_base }}/dns/policies/{{ item.id }}"
+    method: DELETE
+    headers: "{{ unifi_headers }}"
+    validate_certs: "{{ unifi_validate_certs | bool }}"
+    ca_path: "{{ unifi_ca_file or omit }}"
+    status_code: [200, 204]
+  changed_when: true
+  loop: "{{ (unifi_dns_plan_json | from_json).to_delete }}"
+  loop_control:
+    label: "{{ item.type }} {{ item.domain }}"

@@ -1,0 +1,4 @@
+---
+# Copy to vault.yml, fill in, then: ansible-vault encrypt inventory/host_vars/udm/vault.yml
+# UniFi Network > Integrations > Create API Key (local key, not the one update-doh-iplists uses)
+vault_unifi_api_key: CHANGE_ME

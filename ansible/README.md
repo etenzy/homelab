@@ -51,8 +51,9 @@ passenden Gruppen. `nvidia_enabled` ist automatisch `true`, wenn der Host in `gp
 | `debian_hosts` ohne `docker_hosts` | `node_exporter` | node_exporter als Binary mit systemd (:9100), systemd-Collector, Textfile-Collector unter `/var/lib/prometheus/node-exporter` | sun |
 | `chrony_servers` | `chrony_server` | NTP-Server mit NTS-Quellen (PTB), `authselectmode require`, `minsources 2`, Orphan-Modus; chrony_exporter (:9123) | sun |
 | `postgresql_hosts` | `postgresql` | PostgreSQL 17 aus Debian (PGDG optional per `postgresql_pgdg`, Meta-Pakete dann gepinnt), `postgresql.conf` aus `host_files`, dazu `listen.conf` und `pg_stat_statements.conf` in `conf.d`; Datenbanken, Benutzer, Rechte und `pg_hba.conf` aus `postgresql_databases`/`postgresql_users`, Passwörter aus dem Vault; postgres_exporter (:9187) | sun |
-| `blocky_hosts` | `blocky` | Blocky als Binary, Config aus `host_files` (vor dem Kopieren mit `blocky validate` geprüft), Wartungs-Timer für Partitionen und Domain-Purge (Domains aus dem Vault) | sun |
+| `blocky_hosts` | `blocky`, `blocky_partitions`, `blocky_purge_domains` | Blocky als Binary, Config aus `host_files` (vor dem Kopieren mit `blocky validate` geprüft). Optional, wenn das Query-Log in PostgreSQL liegt: wöchentliche Partitionen für `log_entries` samt Migration der Tabelle und Wartungs-Timer (`blocky_partitions`), Timer für den Domain-Purge mit Domains aus dem Vault (`blocky_purge_domains`) | sun |
 | `valkey_hosts` | `valkey` | Valkey aus dem Debian-Paket, `valkey.conf` bleibt Paket-Default plus Include `conf.d/homelab.conf` (bind aus den Host-IPs, `valkey_settings`), ACL aus `host_files`, redis_exporter (:9121) | sun |
+| `unifi_consoles` | `unifi_dns`, `unifi_dnat` | UDM per API vom Controller aus (`ansible_connection: local`, gemeinsame Verbindung über `unifi_api`): lokale DNS-Einträge aus `unifi_dns_records` (offizielle Integration API), DNAT-Regeln aus `unifi_dnat_rules` (interne API) | udm |
 
 Alle Binaries auf sun (blocky, node_exporter, chrony_exporter, postgres_exporter,
 redis_exporter) installiert die Hilfsrolle `update_binary`: Sie legt die Bibliothek
@@ -100,7 +101,7 @@ sun wurde von Hand eingerichtet. Damit der erste Lauf nichts kaputt macht:
    die Valkey-Configs und die redis_exporter-Env ab (fehlende Dateien werden übersprungen).
    `purge-domains.sql` wird nicht mehr geholt: Die Rolle erzeugt die Datei aus
    `vault_blocky_purge_patterns` in `host_vars/sun/vault.yml` (LIKE-Muster, Zeitfenster
-   `blocky_purge_window`, Standard 4 Stunden). Die Muster aus der alten Datei einmal dorthin
+   `blocky_purge_domains_window`, Standard 4 Stunden). Die Muster aus der alten Datei einmal dorthin
    übertragen (`cat /usr/local/lib/blocky/purge-domains.sql` auf sun).
    Dateien mit Passwörtern danach verschlüsseln (siehe `host_files/README.md`). Pfade, die auf
    sun anders heißen (z. B. die Valkey-ACL), in `host_vars/sun/vars.yml` unter
@@ -133,7 +134,7 @@ sun wurde von Hand eingerichtet. Damit der erste Lauf nichts kaputt macht:
    ansible-playbook site.yml --limit sun --tags base,admin --ask-vault-pass
    ansible-playbook site.yml --limit sun --tags node_exporter,chrony --ask-vault-pass
    ansible-playbook site.yml --limit sun --tags postgresql --ask-vault-pass
-   ansible-playbook site.yml --limit sun --tags blocky,valkey --ask-vault-pass
+   ansible-playbook site.yml --limit sun --tags blocky,blocky_partitions,blocky_purge_domains,valkey --ask-vault-pass
    ```
    PostgreSQL wird nie automatisch neu gestartet. Ändert sich `postgresql.conf`,
    `listen.conf` oder `pg_stat_statements.conf`, meldet Ansible das nur. Neustart dann von Hand oder mit
@@ -149,6 +150,7 @@ Ab dann Änderungen an diesen Dateien in `host_files/sun/` bzw. in den Rollen ma
 | Komponente | Version | Quelle |
 |---|---|---|
 | ansible-core / ansible | 2.21.5 / 14.5.0 | PyPI |
+| UniFi Network Integration API | 11.0.97 (OpenAPI-Spec) | developer.ui.com |
 | community.docker / community.general / ansible.posix / community.postgresql | 5.4.0 / 13.5.0 / 2.2.2 / 4.2.0 | ansible 14.5.0 |
 | Docker CE / Compose-Plugin | 29.9.2 / 5.6.1 | download.docker.com (trixie) |
 | Traefik | v3.7.17 (v3.8.0 ist noch RC) | Docker Hub |
@@ -178,6 +180,7 @@ hochsetzen und die Rolle erneut laufen lassen. Docker CE kommt über apt und ist
    cp inventory/group_vars/all/vault.yml.example inventory/group_vars/all/vault.yml
    cp inventory/host_vars/mars/vault.yml.example inventory/host_vars/mars/vault.yml
    cp inventory/host_vars/sun/vault.yml.example inventory/host_vars/sun/vault.yml   # optional
+   cp inventory/host_vars/udm/vault.yml.example inventory/host_vars/udm/vault.yml   # UniFi-API-Key
    $EDITOR inventory/group_vars/all/vault.yml inventory/host_vars/*/vault.yml
    ansible-vault encrypt inventory/group_vars/all/vault.yml inventory/host_vars/*/vault.yml
    ```
@@ -191,6 +194,7 @@ ansible-playbook site.yml --ask-vault-pass                        # alle Hosts
 ansible-playbook site.yml --limit mars --ask-vault-pass           # ein Host
 ansible-playbook site.yml --tags traefik --ask-vault-pass         # eine Rolle auf allen ihren Hosts
 ansible-playbook site.yml --tags blocky_partitions --ask-vault-pass # nur die log_entries-Partitionierung
+ansible-playbook site.yml --tags blocky_purge_domains --ask-vault-pass # nur der Domain-Purge
 ansible-playbook site.yml --check --diff --ask-vault-pass         # Probelauf
 ansible-playbook site.yml --limit mars -k -K --ask-vault-pass     # erster Lauf, noch mit Passwort
 ```
@@ -231,6 +235,84 @@ Vorher BIOS aktualisieren (siehe `hp-g3/bios-update.md`) und in UniFi die DNS-Ei
    Jellyfin-URL auf `https://jellyfin.home.rdl.sh` ändern.
 6. Auf earth die Container jellyfin und jellyfin-exporter sowie den Traefik-Router `jellyfin`
    entfernen. Das CIFS-Passwort, das dort im Klartext stand, rotieren.
+
+## UniFi (UDM)
+
+Drei Rollen, alle laufen vom Controller aus, auf der UDM selbst wird nichts per SSH geändert:
+
+| Rolle | API | Inhalt |
+|---|---|---|
+| `unifi_api` | offiziell | Verbindung, Zertifikat, Site-ID. Wird von den beiden anderen als Abhängigkeit geladen |
+| `unifi_dns` | offizielle Integration API (`/proxy/network/integration/v1/...`, geprüft gegen Spec 11.0.97) | lokale DNS-Einträge |
+| `unifi_dnat` | interne API (`/proxy/network/v2/api/site/<site>/nat`) | Destination-NAT-Regeln |
+
+Für NAT hat die Integration API keinen Endpunkt. `unifi_dnat` nutzt deshalb die interne API
+(derselbe API-Key). Sie ist nicht dokumentiert und kann sich mit einem UniFi-Update ändern.
+Die offizielle Collection `ubiquiti.unifi_api` 1.0.0 wird bewusst nicht genutzt: Sie ist nur
+ein generischer API-Aufrufer, meldet bei jedem Schreibzugriff `changed`, ignoriert `--check`
+(schreibt also trotzdem) und lädt die Spec bei jedem Lauf von ui.com.
+
+**Einrichten:**
+
+1. API-Key: UniFi Network > Integrations > Create API Key. Einen eigenen Key anlegen, nicht den
+   von `update-doh-iplists`. In `inventory/host_vars/udm/vault.yml` als `vault_unifi_api_key`.
+2. Zertifikat der UDM ablegen (die UDM nutzt ein selbstsigniertes Zertifikat) und
+   `unifi_ca_path` darauf zeigen lassen:
+   ```bash
+   openssl s_client -connect 10.1.0.1:443 </dev/null 2>/dev/null | openssl x509 > inventory/host_vars/udm/udm.pem
+   ```
+   Alternativ `unifi_validate_certs: false` in `host_vars/udm/vars.yml`.
+
+### DNS-Einträge (`unifi_dns`)
+
+In `host_vars/udm/vars.yml` unter `unifi_dns_records`, mit den Feldnamen der API
+(`A_RECORD`/`ipv4Address`, `AAAA_RECORD`/`ipv6Address`, `CNAME_RECORD`/`targetDomain`,
+`TXT_RECORD`/`text`, `MX_RECORD`, `SRV_RECORD`, `FORWARD_DOMAIN`/`ipAddress`). `enabled` ist
+standardmäßig `true`, `ttlSeconds` (nicht `ttl`) `unifi_dns_default_ttl` (3600). Unbekannte
+Felder lehnt die Rolle vor dem ersten Schreibzugriff ab.
+
+Erkannt wird ein Eintrag über Typ, Domain und Wert. CNAMEs erlaubt die UDM nur einmal pro Name,
+sie werden deshalb nur über Typ und Domain erkannt und bei anderem Ziel geändert. Bei A/AAAA/TXT
+wird ein Eintrag mit neuem Wert neu angelegt, der alte nur mit `unifi_dns_purge: true` gelöscht.
+
+```bash
+ansible-playbook site.yml --tags unifi_dns --check --diff --ask-vault-pass   # Probelauf
+```
+
+Die Task „Planned DNS changes“ listet, was angelegt, geändert oder gelöscht würde. Erst wenn
+alle UI-Einträge im Inventory stehen, `unifi_dns_purge: true` setzen.
+
+### DNAT-Regeln (`unifi_dnat`)
+
+Eine Regel wird über ihre `description` erkannt, die deshalb eindeutig sein muss. Die Felder
+sind die der internen API. Verglichen und geändert werden nur die angegebenen Felder, alles
+andere an einer bestehenden Regel bleibt, wie es ist. `type` ist standardmäßig `DNAT`,
+`enabled` `true`. Die vorhandenen Regeln samt Feldern zeigt:
+
+```bash
+ansible-playbook site.yml --tags unifi_dnat_show --ask-vault-pass
+```
+
+Daraus eine Regel nach `unifi_dnat_rules` kopieren und die Werte genau so übernehmen, wie die API
+sie liefert (z. B. Ports als String `"53"`), sonst meldet jeder Lauf eine Änderung. Beispiel,
+Struktur aus der Ausgabe oben übernehmen:
+
+```yaml
+unifi_dnat_manage: true
+unifi_dnat_rules:
+  - description: DNS to Blocky (Private)
+    ip_address: 10.1.0.2
+    port: "53"
+```
+
+Dann `--tags unifi_dnat --check --diff`, die Task „Planned DNAT changes“ zeigt die Änderungen.
+`unifi_dnat_purge: true` löscht DNAT-Regeln (keine vordefinierten), die nicht im Inventory
+stehen.
+
+**Was die Integration API sonst noch kann** (für später): Netze inklusive IPv4-DHCP und
+statischem IPv6, WLANs, Firewall-Zonen, Policies samt Reihenfolge, Traffic-Matching-Lists,
+ACL-Regeln. Nur lesbar: WAN, VPN, RADIUS, LAGs/Stacks. Gar nicht: Port-Profile, NAT, IDS/IPS
+und andere Einstellungen.
 
 ## Prometheus (auf earth)
 
@@ -307,7 +389,7 @@ nicht gelaufen.
   als Rückfall, wenn die API nicht antwortet).
 - **Purge-Muster im Vault statt als Hostfile:** `purge-domains.sql` wird aus
   `vault_blocky_purge_patterns` erzeugt (LIKE-Muster auf `question_name`, nur Einträge der
-  letzten `blocky_purge_window`, Datei `0640` root:blocky). Ohne Muster wird die Datei
+  letzten `blocky_purge_domains_window`, Datei `0640` root:blocky). Ohne Muster wird die Datei
   entfernt und der Purge-Timer abgeschaltet.
 - **Gemeinsame Variablen ohne Rollen-Präfix** (`admin_user`, `home_domain`, `nvidia_enabled`,
   `media_mounts` …): Sie werden bewusst von mehreren Rollen genutzt. Die Lint-Regel
@@ -359,10 +441,21 @@ nicht gelaufen.
   Hosts außer `chrony_servers` `systemd-timesyncd` mit `NTP=time.home.rdl.sh` (Drop-in
   `timesyncd.conf.d/homelab.conf`, Fallback: Debian-Pool). Die Pakete schließen sich gegenseitig
   aus, ein vorhandenes chrony wird dabei ersetzt. sun bekommt chrony nur über `chrony_server`.
-- **Partitionierung von `log_entries`** steckt in `roles/blocky/tasks/partitions.yml` (Tag
-  `blocky_partitions`): Funktion `maintain_log_entries_partitions` samt Timer, autovacuum-Werte
-  auf allen Partitionen und auf frischen Hosts die partitionierte Tabelle. Eine bestehende
-  Tabelle fasst Ansible nie an; die Umstellung einer unpartitionierten Tabelle bleibt manuell.
+- **Partitionierung von `log_entries`** ist die eigene Rolle `blocky_partitions` (Tag
+  `blocky_partitions`, Variablen `blocky_partitions_*`). Sie läuft nach `blocky`: Blocky legt
+  beim ersten Start per AutoMigrate eine normale Tabelle an, die Rolle migriert sie einmalig in
+  einer Transaktion. Dabei wird die alte Tabelle umbenannt, die partitionierte Tabelle angelegt
+  und die Wochen-Partitionen ab dem ältesten behaltenen Eintrag erzeugt. Anschließend kopiert die
+  Rolle die Zeilen innerhalb der Retention, setzt die Sequenz fort, übernimmt die Grants (z. B.
+  `SELECT` für grafana) und löscht die alte Tabelle. Mit `blocky_partitions_migrate_keep_old: true`
+  bleibt sie als `log_entries_unpartitioned` liegen. Blockys Inserts warten so lange auf den Lock,
+  DNS läuft weiter (`blocky_partitions_migrate_lock_timeout`, Standard 10s). Mit
+  `blocky_partitions_migrate: false` wird nur gewarnt. Bereits partitionierte Tabellen fasst die
+  Rolle nicht an; sie pflegt dann nur die Funktion `maintain_log_entries_partitions`, den Timer
+  und die autovacuum-Werte.
+- **Domain-Purge** ist die eigene Rolle `blocky_purge_domains` (Tag `blocky_purge_domains`). Ohne
+  Query-Log in PostgreSQL beide Zeilen in `site.yml` weglassen; `blocky` selbst braucht keine
+  Datenbank.
 - **PostgreSQL-Passwörter** sind optional im Vault. Ohne Vault-Eintrag behalten die Rollen ihr
   bestehendes Passwort.
 

@@ -67,3 +67,10 @@
   become: true
   roles:
     - { role: jellyfin, tags: [jellyfin] }
+
+- name: UniFi console (API calls from the controller)
+  hosts: unifi_consoles
+  gather_facts: false
+  roles:
+    - { role: unifi_dns, tags: [unifi, unifi_dns] }
+    - { role: unifi_dnat, tags: [unifi, unifi_dnat] }

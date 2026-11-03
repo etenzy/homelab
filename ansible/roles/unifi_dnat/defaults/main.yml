@@ -1,0 +1,14 @@
+---
+# Destination NAT rules on the UDM. The Integration API has no NAT endpoint, so this role uses
+# the internal API (/proxy/network/v2/api/site/<site>/nat, same X-API-KEY). It is not
+# documented by Ubiquiti and may change with UniFi Network updates.
+#
+# Each rule is identified by its description (must be unique). Fields are the API's own; only
+# the fields given here are compared and changed, everything else of an existing rule is kept.
+# Copy the structure of an existing rule from:
+#   ansible-playbook site.yml --tags unifi_dnat_show
+# type defaults to DNAT, enabled to true.
+unifi_dnat_manage: false            # true once unifi_dnat_rules is filled in
+unifi_dnat_rules: []
+# Delete DNAT rules (not predefined) whose description is not in unifi_dnat_rules.
+unifi_dnat_purge: false

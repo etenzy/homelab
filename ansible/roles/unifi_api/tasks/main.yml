@@ -1,0 +1,68 @@
+---
+# Tagged "always": the roles that depend on this one need the facts for any --tags selection.
+- name: Connection facts
+  ansible.builtin.set_fact:
+    unifi_api_base: "{{ unifi_api_url | regex_replace('/+$', '') }}/proxy/network/integration"
+    # Internal API, used where the Integration API has no endpoint (NAT).
+    unifi_v2_base: "{{ unifi_api_url | regex_replace('/+$', '') }}/proxy/network/v2/api/site/{{ unifi_site }}"
+    unifi_headers:
+      X-API-KEY: "{{ unifi_api_key }}"
+      Accept: application/json
+    # Only passed to uri when certificates are validated; a set but unused path is still opened.
+    unifi_ca_file: "{{ unifi_ca_path if (unifi_validate_certs | bool and unifi_ca_path | length > 0) else '' }}"
+  no_log: true
+  tags: [always]
+
+# uri reports a missing ca_path only as "Connection failure: No such file or directory".
+- name: Check the CA file
+  ansible.builtin.stat:
+    path: "{{ unifi_ca_file }}"
+  register: unifi_ca_stat
+  when: unifi_ca_file | length > 0
+  tags: [always]
+
+- name: Make sure the CA file exists
+  ansible.builtin.assert:
+    that: unifi_ca_stat.stat.exists
+    fail_msg: >-
+      {{ unifi_ca_path }} is missing. Export the UDM certificate (see README, "UniFi (UDM)")
+      or set unifi_validate_certs: false.
+    quiet: true
+  when: unifi_ca_file | length > 0
+  tags: [always]
+
+- name: Check API access and application version
+  ansible.builtin.uri:
+    url: "{{ unifi_api_base }}/v1/info"
+    headers: "{{ unifi_headers }}"
+    validate_certs: "{{ unifi_validate_certs | bool }}"
+    ca_path: "{{ unifi_ca_file or omit }}"
+  check_mode: false
+  register: unifi_info
+  tags: [always]
+
+- name: Look up the site
+  ansible.builtin.uri:
+    url: "{{ unifi_api_base }}/v1/sites?limit={{ unifi_page_limit }}"
+    headers: "{{ unifi_headers }}"
+    validate_certs: "{{ unifi_validate_certs | bool }}"
+    ca_path: "{{ unifi_ca_file or omit }}"
+  check_mode: false
+  register: unifi_sites
+  tags: [always]
+
+- name: Resolve the site ID
+  ansible.builtin.set_fact:
+    unifi_site_id: >-
+      {{ (unifi_sites.json.data | selectattr('internalReference', 'equalto', unifi_site) | first).id }}
+  tags: [always]
+
+- name: Site base URL
+  ansible.builtin.set_fact:
+    unifi_site_base: "{{ unifi_api_base }}/v1/sites/{{ unifi_site_id }}"
+  tags: [always]
+
+- name: Show the console
+  ansible.builtin.debug:
+    msg: "UniFi Network {{ unifi_info.json.applicationVersion }}, site {{ unifi_site }} ({{ unifi_site_id }})"
+  tags: [always]

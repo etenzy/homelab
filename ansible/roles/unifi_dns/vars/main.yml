@@ -1,0 +1,22 @@
+---
+# Field that holds the value of each DNS policy type (part of the record identity).
+unifi_dns_value_keys:
+  A_RECORD: ipv4Address
+  AAAA_RECORD: ipv6Address
+  CNAME_RECORD: targetDomain
+  TXT_RECORD: text
+  MX_RECORD: mailServerDomain
+  SRV_RECORD: serverDomain
+  FORWARD_DOMAIN: ipAddress
+unifi_dns_ttl_types: [A_RECORD, AAAA_RECORD, CNAME_RECORD]
+# Request body fields per DNS policy type (OpenAPI spec 11.0.97); anything else is rejected by the API.
+unifi_dns_allowed_keys:
+  A_RECORD: [type, enabled, domain, ipv4Address, ttlSeconds]
+  AAAA_RECORD: [type, enabled, domain, ipv6Address, ttlSeconds]
+  CNAME_RECORD: [type, enabled, domain, targetDomain, ttlSeconds]
+  TXT_RECORD: [type, enabled, domain, text]
+  MX_RECORD: [type, enabled, domain, mailServerDomain, priority]
+  SRV_RECORD: [type, enabled, domain, serverDomain, service, protocol, port, priority, weight]
+  FORWARD_DOMAIN: [type, enabled, domain, ipAddress]
+# Types the UDM allows only once per name ("cname-alias-overlap"); identified by name only.
+unifi_dns_single_types: [CNAME_RECORD]

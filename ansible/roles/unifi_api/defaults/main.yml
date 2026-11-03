@@ -1,0 +1,9 @@
+---
+# Connection to a UniFi console, shared by unifi_dns and unifi_dnat (meta dependency).
+# Requests run on the controller (ansible_connection local), the console is never logged into.
+unifi_api_url: https://10.1.0.1
+unifi_api_key: "{{ vault_unifi_api_key }}"
+unifi_site: default                 # internalReference of the site (name in older APIs)
+unifi_validate_certs: true
+unifi_ca_path: ""                   # PEM of the UDM certificate if it is not trusted system-wide
+unifi_page_limit: 200               # Integration API maximum per request

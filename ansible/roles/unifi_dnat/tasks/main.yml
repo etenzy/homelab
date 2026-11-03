@@ -1,0 +1,117 @@
+---
+- name: Read NAT rules
+  ansible.builtin.uri:
+    url: "{{ unifi_v2_base }}/nat"
+    headers: "{{ unifi_headers }}"
+    validate_certs: "{{ unifi_validate_certs | bool }}"
+    ca_path: "{{ unifi_ca_file or omit }}"
+  check_mode: false
+  register: unifi_dnat_current
+  tags: [unifi_dnat, unifi_dnat_show]
+
+- name: Current NAT rules
+  ansible.builtin.set_fact:
+    unifi_dnat_existing: >-
+      {{ unifi_dnat_current.json if unifi_dnat_current.json is sequence else unifi_dnat_current.json.data }}
+  tags: [unifi_dnat, unifi_dnat_show]
+
+- name: Show current NAT rules (copy template for unifi_dnat_rules)
+  ansible.builtin.debug:
+    var: unifi_dnat_existing
+  tags: [never, unifi_dnat_show]
+
+- name: Validate unifi_dnat_rules
+  ansible.builtin.assert:
+    that:
+      - unifi_dnat_rules | map(attribute='description', default='') | select | list | length == unifi_dnat_rules | length
+      - unifi_dnat_rules | map(attribute='description') | unique | list | length == unifi_dnat_rules | length
+    fail_msg: Every entry in unifi_dnat_rules needs a unique description.
+    quiet: true
+  when: unifi_dnat_manage | bool
+  tags: [unifi_dnat]
+
+# Desired fields are merged recursively into the current rule; the rule changes only when the
+# merge result differs from what the UDM has.
+- name: Compare desired and current DNAT rules
+  ansible.builtin.set_fact:
+    unifi_dnat_plan_json: >-
+      {%- set ns = namespace(create=[], update=[], delete=[]) -%}
+      {%- set names = unifi_dnat_rules | map(attribute='description') | list -%}
+      {%- for d in unifi_dnat_rules -%}
+      {%-   set body = {'type': 'DNAT', 'enabled': true} | combine(d) -%}
+      {%-   set cur = unifi_dnat_existing | selectattr('description', 'defined')
+                      | selectattr('description', 'equalto', d.description) | list -%}
+      {%-   if cur | length == 0 -%}
+      {%-     set ns.create = ns.create + [body] -%}
+      {%-   else -%}
+      {%-     set merged = cur[0] | combine(body, recursive=True) -%}
+      {%-     if merged != cur[0] -%}{%- set ns.update = ns.update + [merged] -%}{%- endif -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {%- if unifi_dnat_purge | bool -%}
+      {%-   for r in unifi_dnat_existing if r.type | default('') == 'DNAT' and not (r.is_predefined | default(false))
+                                         and r.description | default('') not in names -%}
+      {%-     set ns.delete = ns.delete + [r] -%}
+      {%-   endfor -%}
+      {%- endif -%}
+      {{ {'to_create': ns.create, 'to_update': ns.update, 'to_delete': ns.delete} | to_json }}
+  when: unifi_dnat_manage | bool
+  tags: [unifi_dnat]
+
+- name: Planned DNAT changes
+  ansible.builtin.debug:
+    msg:
+      create: "{{ plan.to_create | map(attribute='description') | list }}"
+      update: "{{ plan.to_update | map(attribute='description') | list }}"
+      delete: "{{ plan.to_delete | map(attribute='description', default='?') | list }}"
+  # Reports "changed" in --check, where the write tasks below are skipped.
+  changed_when: ansible_check_mode and (plan.to_create + plan.to_update + plan.to_delete) | length > 0
+  vars:
+    plan: "{{ unifi_dnat_plan_json | from_json }}"
+  when: unifi_dnat_manage | bool
+  tags: [unifi_dnat]
+
+- name: Create DNAT rules
+  ansible.builtin.uri:
+    url: "{{ unifi_v2_base }}/nat"
+    method: POST
+    body: "{{ item }}"
+    body_format: json
+    headers: "{{ unifi_headers }}"
+    validate_certs: "{{ unifi_validate_certs | bool }}"
+    ca_path: "{{ unifi_ca_file or omit }}"
+    status_code: [200, 201]
+  changed_when: true
+  loop: "{{ (unifi_dnat_plan_json | from_json).to_create if unifi_dnat_manage | bool else [] }}"
+  loop_control:
+    label: "{{ item.description }}"
+  tags: [unifi_dnat]
+
+- name: Update DNAT rules
+  ansible.builtin.uri:
+    url: "{{ unifi_v2_base }}/nat/{{ item._id }}"
+    method: PUT
+    body: "{{ item }}"
+    body_format: json
+    headers: "{{ unifi_headers }}"
+    validate_certs: "{{ unifi_validate_certs | bool }}"
+    ca_path: "{{ unifi_ca_file or omit }}"
+  changed_when: true
+  loop: "{{ (unifi_dnat_plan_json | from_json).to_update if unifi_dnat_manage | bool else [] }}"
+  loop_control:
+    label: "{{ item.description }}"
+  tags: [unifi_dnat]
+
+- name: Delete DNAT rules that are not in unifi_dnat_rules
+  ansible.builtin.uri:
+    url: "{{ unifi_v2_base }}/nat/{{ item._id }}"
+    method: DELETE
+    headers: "{{ unifi_headers }}"
+    validate_certs: "{{ unifi_validate_certs | bool }}"
+    ca_path: "{{ unifi_ca_file or omit }}"
+    status_code: [200, 204]
+  changed_when: true
+  loop: "{{ (unifi_dnat_plan_json | from_json).to_delete if unifi_dnat_manage | bool else [] }}"
+  loop_control:
+    label: "{{ item.description | default(item._id) }}"
+  tags: [unifi_dnat]

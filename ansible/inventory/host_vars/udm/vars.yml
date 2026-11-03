@@ -1,0 +1,36 @@
+---
+# UDM Pro Max. All tasks call the Integration API from the controller.
+ansible_connection: local
+ansible_python_interpreter: "{{ ansible_playbook_python }}"
+
+unifi_api_url: https://10.1.0.1
+unifi_site: default
+# The UDM ships a self-signed certificate: export it once and point unifi_ca_path at it,
+#   openssl s_client -connect 10.1.0.1:443 </dev/null 2>/dev/null | openssl x509 > inventory/host_vars/udm/udm.pem
+# or set unifi_validate_certs: false.
+# unifi_ca_path: "{{ inventory_dir }}/host_vars/udm/udm.pem"
+unifi_validate_certs: false
+
+# Local DNS records on the UDM. Start with unifi_dns_manage: true and unifi_dns_purge: false,
+# check with --check --diff, move the UI records over, then switch purge on.
+#  - { type: A_RECORD, domain: "sun.{{ home_domain }}", ipv4Address: 10.1.0.2 }
+#  - { type: AAAA_RECORD, domain: "sun.{{ home_domain }}", ipv6Address: "fd00:10:1::2" }
+#  - { type: CNAME_RECORD, domain: "time.{{ home_domain }}", targetDomain: "sun.{{ home_domain }}" }
+unifi_dns_manage: true
+unifi_dns_purge: false
+unifi_dns_records:
+  - { type: A_RECORD, domain: "udm.{{ home_domain }}", ipv4Address: 10.1.0.1, ttlSeconds: 300 }
+  - { type: AAAA_RECORD, domain: "udm.{{ home_domain }}", ipv6Address: "fd00:10:1::1", ttlSeconds: 300 }
+  - { type: A_RECORD, domain: "sun.{{ home_domain }}", ipv4Address: 10.1.0.2, ttlSeconds: 300 }
+  - { type: AAAA_RECORD, domain: "sun.{{ home_domain }}", ipv6Address: "fd00:10:1::2", ttlSeconds: 300 }
+  - { type: CNAME_RECORD, domain: "time.{{ home_domain }}", targetDomain: "sun.{{ home_domain }}", ttlSeconds: 300 }
+  - { type: CNAME_RECORD, domain: "blocky.{{ home_domain }}", targetDomain: "sun.{{ home_domain }}", ttlSeconds: 300 }
+  - { type: A_RECORD, domain: "synology.{{ home_domain }}", ipv4Address: 10.73.10.2, ttlSeconds: 300 }
+  - { type: AAAA_RECORD, domain: "synology.{{ home_domain }}", ipv6Address: "fd00:10:73:10::2", ttlSeconds: 300 }
+  - { type: A_RECORD, domain: "earth.{{ home_domain }}", ipv4Address: 10.73.10.3, ttlSeconds: 300 }
+  - { type: AAAA_RECORD, domain: "earth.{{ home_domain }}", ipv6Address: "fd00:10:73:10::3", ttlSeconds: 300 }
+  - { type: CNAME_RECORD, domain: "prometheus.{{ home_domain }}", targetDomain: "earth.{{ home_domain }}", ttlSeconds: 300 }
+  - { type: CNAME_RECORD, domain: "alertmanager.{{ home_domain }}", targetDomain: "earth.{{ home_domain }}", ttlSeconds: 300 }
+  - { type: CNAME_RECORD, domain: "grafana.{{ home_domain }}", targetDomain: "earth.{{ home_domain }}", ttlSeconds: 300 }
+  - { type: CNAME_RECORD, domain: "jellyfin.{{ home_domain }}", targetDomain: "earth.{{ home_domain }}", ttlSeconds: 300 }
+  - { type: CNAME_RECORD, domain: "seerr.{{ home_domain }}", targetDomain: "earth.{{ home_domain }}", ttlSeconds: 300 }
