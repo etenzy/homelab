@@ -1,0 +1,140 @@
+---
+# Weekly range partitions of blocky's query log table (log_entries) in
+# PostgreSQL. Runs after the blocky role: blocky's AutoMigrate creates a plain
+# table, which is migrated here once (blocky_partitions_migrate).
+- name: SQL directory
+  ansible.builtin.file:
+    path: "{{ blocky_partitions_sql_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Partition storage parameters are plain names and values
+  ansible.builtin.assert:
+    that:
+      - blocky_partitions_reloptions.keys() | reject('match', '^[a-z_]+$') | list | length == 0
+      - blocky_partitions_reloptions.values() | map('string') | reject('match', '^[A-Za-z0-9.]+$') | list | length == 0
+    fail_msg: "Invalid entries in blocky_partitions_reloptions."
+    quiet: true
+
+- name: Partition maintenance function (SQL file)
+  ansible.builtin.template:
+    src: log-entries-partitions.sql.j2
+    dest: "{{ blocky_partitions_sql_dir }}/log-entries-partitions.sql"
+    owner: root
+    group: root
+    mode: "0644"
+  register: blocky_partitions_sql
+
+- name: Look up partition maintenance function
+  community.postgresql.postgresql_query:
+    login_db: "{{ blocky_partitions_db }}"
+    login_unix_socket: /run/postgresql
+    query: >-
+      SELECT to_regprocedure('public.maintain_log_entries_partitions(integer, interval)')
+      IS NOT NULL AS present
+  become: true
+  become_user: postgres
+  check_mode: false
+  register: blocky_partitions_fn
+
+- name: Create or update partition maintenance function
+  community.postgresql.postgresql_script:
+    login_db: "{{ blocky_partitions_db }}"
+    login_unix_socket: /run/postgresql
+    path: "{{ blocky_partitions_sql_dir }}/log-entries-partitions.sql"
+  become: true
+  become_user: postgres
+  # postgresql_script has no check mode support: skipped in --check runs.
+  when: blocky_partitions_sql is changed or not blocky_partitions_fn.query_result[0].present
+
+- name: Initial log_entries schema (SQL file)
+  ansible.builtin.template:
+    src: log-entries-schema.sql.j2
+    dest: "{{ blocky_partitions_sql_dir }}/log-entries-schema.sql"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Migration SQL
+  ansible.builtin.template:
+    src: log-entries-migrate.sql.j2
+    dest: "{{ blocky_partitions_sql_dir }}/log-entries-migrate.sql"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Look up log_entries table
+  community.postgresql.postgresql_query:
+    login_db: "{{ blocky_partitions_db }}"
+    login_unix_socket: /run/postgresql
+    query: >-
+      SELECT coalesce((SELECT relkind::text FROM pg_class
+                       WHERE oid = to_regclass('public.log_entries')), '') AS relkind
+  become: true
+  become_user: postgres
+  check_mode: false
+  register: blocky_partitions_table
+
+# r: plain table from blocky's AutoMigrate. One transaction (see the SQL file);
+# postgresql_script has no check mode support, so --check only reports it.
+- name: Migrate log_entries to partitions
+  community.postgresql.postgresql_script:
+    login_db: "{{ blocky_partitions_db }}"
+    login_unix_socket: /run/postgresql
+    path: "{{ blocky_partitions_sql_dir }}/log-entries-migrate.sql"
+  become: true
+  become_user: postgres
+  when:
+    - blocky_partitions_table.query_result[0].relkind == 'r'
+    - blocky_partitions_migrate | bool
+
+# No table yet (blocky not started or no PostgreSQL query log configured).
+- name: Create partitioned log_entries table
+  community.postgresql.postgresql_script:
+    login_db: "{{ blocky_partitions_db }}"
+    login_unix_socket: /run/postgresql
+    path: "{{ blocky_partitions_sql_dir }}/log-entries-schema.sql"
+  become: true
+  become_user: postgres
+  when: blocky_partitions_table.query_result[0].relkind == ''
+
+- name: Create the first partitions
+  community.postgresql.postgresql_query:
+    login_db: "{{ blocky_partitions_db }}"
+    login_unix_socket: /run/postgresql
+    query: SELECT maintain_log_entries_partitions()
+    # As the table owner (SET ROLE), so the partitions belong to it.
+    session_role: "{{ blocky_partitions_owner }}"
+  become: true
+  become_user: postgres
+  # Check mode: the function and table this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+  when: blocky_partitions_table.query_result[0].relkind == ''
+
+- name: Warn about an unpartitioned log_entries table
+  ansible.builtin.debug:
+    msg: >-
+      log_entries is not partitioned (relkind
+      {{ blocky_partitions_table.query_result[0].relkind }}) and was not migrated
+      ({{ 'check mode' if ansible_check_mode else 'blocky_partitions_migrate is false' }});
+      the partition timer fails until it is.
+  when: >-
+    blocky_partitions_table.query_result[0].relkind not in ['', 'p']
+    and (ansible_check_mode or not blocky_partitions_migrate | bool
+         or blocky_partitions_table.query_result[0].relkind != 'r')
+
+- name: Partition maintenance unit and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop: [blocky-partitions.service, blocky-partitions.timer]
+
+- name: Partition maintenance timer is active
+  ansible.builtin.systemd_service:
+    name: blocky-partitions.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  # Check mode: the unit this run would create does not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"

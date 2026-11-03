@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Blocky query log: delete unwanted domains
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User={{ blocky_purge_domains_user }}
+ExecStart=/usr/bin/psql -d {{ blocky_purge_domains_db }} -v ON_ERROR_STOP=1 --no-psqlrc -f {{ blocky_purge_domains_sql_dir }}/purge-domains.sql

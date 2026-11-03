@@ -32,6 +32,10 @@
   become: true
   roles:
     - { role: blocky, tags: [blocky] }
+    # Optional, need the query log in PostgreSQL. blocky_partitions migrates the
+    # plain table blocky creates on its first start.
+    - { role: blocky_partitions, tags: [blocky_partitions] }
+    - { role: blocky_purge_domains, tags: [blocky_purge_domains] }
 
 - name: Valkey
   hosts: valkey_hosts

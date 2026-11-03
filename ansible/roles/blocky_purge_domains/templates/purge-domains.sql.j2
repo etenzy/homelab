@@ -1,13 +1,13 @@
 -- {{ ansible_managed }}
 -- Deletes recent query log entries whose question_name matches one of the
--- LIKE patterns in blocky_purge_patterns (host_vars/<host>/vault.yml).
+-- LIKE patterns in blocky_purge_domains_patterns (host_vars/<host>/vault.yml).
 \set ON_ERROR_STOP on
 
 WITH deleted AS (
     DELETE FROM log_entries
-    WHERE request_ts >= now() - interval '{{ blocky_purge_window }}'
+    WHERE request_ts >= now() - interval '{{ blocky_purge_domains_window }}'
       AND (
-{% for pattern in blocky_purge_patterns | unique | sort %}
+{% for pattern in blocky_purge_domains_patterns | unique | sort %}
            {{ "OR " if not loop.first else "   " }}question_name LIKE '{{ pattern | replace("'", "''") }}'
 {% endfor %}
           )

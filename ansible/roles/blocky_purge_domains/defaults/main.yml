@@ -1,0 +1,12 @@
+---
+# Purge of unwanted domains from blocky's query log (table log_entries).
+blocky_purge_domains_db: blocky
+# Runs the purge (peer auth over the socket) and may read the pattern file.
+blocky_purge_domains_user: blocky
+blocky_purge_domains_sql_dir: /usr/local/lib/blocky
+# LIKE patterns (on question_name) whose query log entries are deleted, e.g.
+# "%example%" (substring) or "%example.org" (domain and subdomains). Private, so
+# they live in host_vars/<host>/vault.yml. Empty list: no purge SQL, timer off.
+blocky_purge_domains_patterns: "{{ vault_blocky_purge_patterns | default([]) }}"
+# Only entries this recent are touched; must cover the timer interval.
+blocky_purge_domains_window: 4 hours

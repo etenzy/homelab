@@ -1,0 +1,58 @@
+---
+# Deletes recent blocky query log entries (PostgreSQL) whose question_name
+# matches one of the private LIKE patterns, every 3 hours. Runs after blocky.
+- name: Purge patterns only contain domain characters and %
+  ansible.builtin.assert:
+    that:
+      - blocky_purge_domains_patterns | reject('match', '^[A-Za-z0-9._%-]+$') | list | length == 0
+      - blocky_purge_domains_window is match('^[0-9]+ (minutes?|hours?|days?)$')
+    fail_msg: "Invalid entries in blocky_purge_domains_patterns or blocky_purge_domains_window."
+    quiet: true
+
+- name: Purge SQL directory
+  ansible.builtin.file:
+    path: "{{ blocky_purge_domains_sql_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Purge SQL (patterns from the vault)
+  ansible.builtin.template:
+    src: purge-domains.sql.j2
+    dest: "{{ blocky_purge_domains_sql_dir }}/purge-domains.sql"
+    owner: root
+    group: "{{ blocky_purge_domains_user }}"
+    # The pattern list is private: readable only for the purge user.
+    mode: "0640"
+  no_log: true
+  when: blocky_purge_domains_patterns | length > 0
+
+- name: No purge SQL without patterns
+  ansible.builtin.file:
+    path: "{{ blocky_purge_domains_sql_dir }}/purge-domains.sql"
+    state: absent
+  when: blocky_purge_domains_patterns | length == 0
+
+- name: Purge unit and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop: [blocky-purge-domains.service, blocky-purge-domains.timer]
+
+- name: Purge timer is active
+  ansible.builtin.systemd_service:
+    name: blocky-purge-domains.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  # Check mode: units/binaries this run would create do not exist yet.
+  ignore_errors: "{{ ansible_check_mode }}"
+  when: blocky_purge_domains_patterns | length > 0
+
+- name: Purge timer is off without patterns
+  ansible.builtin.systemd_service:
+    name: blocky-purge-domains.timer
+    enabled: false
+    state: stopped
+    daemon_reload: true
+  when: blocky_purge_domains_patterns | length == 0

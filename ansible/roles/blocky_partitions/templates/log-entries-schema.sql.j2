@@ -5,7 +5,7 @@
 -- Columns follow blocky's logEntry model (querylog/database_writer.go) plus the
 -- id column blocky adds; the primary key has to include the partition key.
 -- Partitions are created by maintain_log_entries_partitions().
-SET ROLE blocky;
+SET ROLE {{ blocky_partitions_owner }};
 
 CREATE SEQUENCE log_entries_id_seq;
 
@@ -33,7 +33,7 @@ CREATE INDEX idx_log_entries_request_ts_brin ON log_entries USING brin (request_
 CREATE INDEX idx_log_entries_client_name ON log_entries USING btree (client_name);
 CREATE INDEX idx_log_entries_question_type ON log_entries USING btree (question_type);
 CREATE INDEX idx_log_entries_response_type ON log_entries USING btree (response_type);
-{% if blocky_query_log_trgm %}
+{% if blocky_partitions_trgm %}
 -- Needs pg_trgm in the database (postgresql_databases[].extensions).
 CREATE INDEX idx_log_entries_question_name_trgm ON log_entries USING gin (question_name gin_trgm_ops);
 {% endif %}

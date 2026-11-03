@@ -73,56 +73,6 @@
     mode: "0644"
   notify: Restart blocky
 
-# --- Query log maintenance (PostgreSQL) -----------------------------------------
-- name: Purge patterns only contain domain characters and %
-  ansible.builtin.assert:
-    that:
-      - blocky_purge_patterns | reject('match', '^[A-Za-z0-9._%-]+$') | list | length == 0
-      - blocky_purge_window is match('^[0-9]+ (minutes?|hours?|days?)$')
-    fail_msg: "Invalid entries in blocky_purge_patterns or blocky_purge_window."
-    quiet: true
-  when: blocky_query_log_postgres
-
-- name: Purge SQL directory
-  ansible.builtin.file:
-    path: /usr/local/lib/blocky
-    state: directory
-    mode: "0755"
-  when: blocky_query_log_postgres
-
-- name: Purge SQL (patterns from the vault)
-  ansible.builtin.template:
-    src: purge-domains.sql.j2
-    dest: /usr/local/lib/blocky/purge-domains.sql
-    owner: root
-    group: blocky
-    # The pattern list is private: readable only for the blocky service user.
-    mode: "0640"
-  no_log: true
-  when: blocky_query_log_postgres and blocky_purge_patterns | length > 0
-
-- name: No purge SQL without patterns
-  ansible.builtin.file:
-    path: /usr/local/lib/blocky/purge-domains.sql
-    state: absent
-  when: blocky_query_log_postgres and blocky_purge_patterns | length == 0
-
-- name: Log table partitions
-  ansible.builtin.include_tasks:
-    file: partitions.yml
-    apply:
-      tags: [blocky_partitions]
-  tags: [blocky_partitions]
-  when: blocky_query_log_postgres
-
-- name: Purge unit and timer
-  ansible.builtin.template:
-    src: "{{ item }}.j2"
-    dest: /etc/systemd/system/{{ item }}
-    mode: "0644"
-  loop: [blocky-purge-domains.service, blocky-purge-domains.timer]
-  when: blocky_query_log_postgres
-
 - name: Run handlers now
   ansible.builtin.meta: flush_handlers
 
@@ -133,23 +83,6 @@
     state: started
   # Check mode: units/binaries this run would create do not exist yet.
   ignore_errors: "{{ ansible_check_mode }}"
-
-- name: Purge timer is active
-  ansible.builtin.systemd_service:
-    name: blocky-purge-domains.timer
-    enabled: true
-    state: started
-    daemon_reload: true
-  # Check mode: units/binaries this run would create do not exist yet.
-  ignore_errors: "{{ ansible_check_mode }}"
-  when: blocky_query_log_postgres and blocky_purge_patterns | length > 0
-
-- name: Purge timer is off without patterns
-  ansible.builtin.systemd_service:
-    name: blocky-purge-domains.timer
-    enabled: false
-    state: stopped
-  when: blocky_query_log_postgres and blocky_purge_patterns | length == 0
 
 - name: Blocky answers DNS
   ansible.builtin.command: /usr/local/bin/blocky healthcheck --bindip 127.0.0.1 --port 53

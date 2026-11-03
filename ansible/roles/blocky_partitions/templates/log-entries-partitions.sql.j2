@@ -4,11 +4,11 @@
 -- applies the storage parameters to every partition (a partitioned parent
 -- cannot carry them itself).
 -- Owned by blocky so it can create and drop partitions of blocky's table.
-SET ROLE blocky;
+SET ROLE {{ blocky_partitions_owner }};
 
 CREATE OR REPLACE FUNCTION public.maintain_log_entries_partitions(
-    p_premake   int      DEFAULT {{ blocky_partition_premake | int }},
-    p_retention interval DEFAULT '{{ blocky_partition_retention }}'
+    p_premake   int      DEFAULT {{ blocky_partitions_premake | int }},
+    p_retention interval DEFAULT '{{ blocky_partitions_retention }}'
 ) RETURNS void
 LANGUAGE plpgsql
 AS $$
@@ -16,7 +16,7 @@ DECLARE
     v_week   date;
     v_part   text;
     v_cutoff date := (now() - p_retention)::date;
-    v_opts   text := {% if blocky_partition_reloptions %}'{% for k, v in blocky_partition_reloptions.items() %}{{ k }} = {{ v }}{{ ', ' if not loop.last }}{% endfor %}'{% else %}NULL{% endif %};
+    v_opts   text := {% if blocky_partitions_reloptions %}'{% for k, v in blocky_partitions_reloptions.items() %}{{ k }} = {{ v }}{{ ', ' if not loop.last }}{% endfor %}'{% else %}NULL{% endif %};
     r        record;
 BEGIN
     -- Current week plus p_premake weeks ahead.

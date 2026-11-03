@@ -1,0 +1,114 @@
+-- {{ ansible_managed }}
+-- One-time migration of a plain log_entries table (as created by blocky's
+-- AutoMigrate) to weekly range partitions. Everything runs in one transaction:
+-- blocky's inserts wait for the table lock and then land in the new table.
+-- Rows older than the retention ({{ blocky_partitions_retention }}) are not copied.
+BEGIN;
+SET LOCAL ROLE {{ blocky_partitions_owner }};
+SET LOCAL lock_timeout = '{{ blocky_partitions_migrate_lock_timeout }}';
+
+-- 1. Move the old table out of the way and free the names the new one needs.
+DO $$
+DECLARE
+    r record;
+BEGIN
+    IF (SELECT relkind FROM pg_class WHERE oid = to_regclass('public.log_entries')) IS DISTINCT FROM 'r' THEN
+        RAISE EXCEPTION 'public.log_entries is not a plain table, nothing to migrate';
+    END IF;
+    IF to_regclass('public.log_entries_unpartitioned') IS NOT NULL THEN
+        RAISE EXCEPTION 'public.log_entries_unpartitioned exists (earlier migration?), remove it first';
+    END IF;
+
+    LOCK TABLE public.log_entries IN ACCESS EXCLUSIVE MODE;
+    ALTER TABLE public.log_entries RENAME TO log_entries_unpartitioned;
+
+    FOR r IN
+        SELECT c.relname
+        FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+        WHERE i.indrelid = 'public.log_entries_unpartitioned'::regclass
+    LOOP
+        EXECUTE format('ALTER INDEX public.%I RENAME TO %I', r.relname, left(r.relname, 50) || '_unpart');
+    END LOOP;
+
+    IF to_regclass('public.log_entries_id_seq') IS NOT NULL THEN
+        ALTER SEQUENCE public.log_entries_id_seq RENAME TO log_entries_unpartitioned_id_seq;
+    END IF;
+END
+$$;
+
+-- 2. New partitioned table (same schema as on a fresh host).
+{% include 'log-entries-schema.sql.j2' %}
+
+SET LOCAL ROLE {{ blocky_partitions_owner }};
+
+-- 3. Partitions for the kept data, copy, sequence, grants.
+DO $$
+DECLARE
+    v_cutoff timestamptz := now() - interval '{{ blocky_partitions_retention }}';
+    v_week   date;
+    v_part   text;
+    v_cols   text;
+    v_max    bigint;
+    v_rows   bigint;
+    r        record;
+BEGIN
+    SELECT date_trunc('week', greatest(min(request_ts), v_cutoff))::date INTO v_week
+    FROM public.log_entries_unpartitioned;
+    v_week := coalesce(v_week, date_trunc('week', now())::date);
+
+    WHILE v_week <= date_trunc('week', now())::date LOOP
+        v_part := format('log_entries_%s', to_char(v_week, 'IYYY_"w"IW'));
+        IF to_regclass('public.' || v_part) IS NULL THEN
+            EXECUTE format(
+                'CREATE TABLE public.%I PARTITION OF public.log_entries FOR VALUES FROM (%L) TO (%L)',
+                v_part, v_week, v_week + 7);
+        END IF;
+        v_week := v_week + 7;
+    END LOOP;
+
+    -- Only columns both tables have (blocky versions differ slightly).
+    SELECT string_agg(quote_ident(n.attname), ', ' ORDER BY n.attnum) INTO v_cols
+    FROM pg_attribute n
+    JOIN pg_attribute o ON o.attname = n.attname
+     AND o.attrelid = 'public.log_entries_unpartitioned'::regclass
+     AND o.attnum > 0 AND NOT o.attisdropped
+    WHERE n.attrelid = 'public.log_entries'::regclass AND n.attnum > 0 AND NOT n.attisdropped;
+
+    EXECUTE format(
+        'INSERT INTO public.log_entries (%1$s) SELECT %1$s FROM public.log_entries_unpartitioned WHERE request_ts >= %2$L',
+        v_cols, v_cutoff);
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+    RAISE NOTICE 'copied % rows', v_rows;
+
+    -- New ids continue after the highest old one (copied or not).
+    SELECT max(id) INTO v_max FROM public.log_entries;
+    IF EXISTS (SELECT 1 FROM pg_attribute WHERE attname = 'id' AND NOT attisdropped
+               AND attrelid = 'public.log_entries_unpartitioned'::regclass) THEN
+        EXECUTE 'SELECT greatest($1, max(id)) FROM public.log_entries_unpartitioned'
+            INTO v_max USING v_max;
+    END IF;
+    IF v_max IS NOT NULL THEN
+        PERFORM setval('public.log_entries_id_seq', v_max);
+    END IF;
+
+    -- Grants of the old table (e.g. SELECT for grafana) carry over to the new one.
+    FOR r IN
+        SELECT a.grantee::regrole::text AS grantee, string_agg(a.privilege_type, ', ') AS privs
+        FROM pg_class c, aclexplode(c.relacl) a
+        WHERE c.oid = 'public.log_entries_unpartitioned'::regclass
+          AND a.grantee NOT IN (0, c.relowner)
+        GROUP BY a.grantee
+    LOOP
+        EXECUTE format('GRANT %s ON public.log_entries TO %s', r.privs, r.grantee);
+    END LOOP;
+{% if not blocky_partitions_migrate_keep_old | bool %}
+
+    DROP TABLE public.log_entries_unpartitioned;
+{% endif %}
+END
+$$;
+
+-- 4. Weeks ahead and storage parameters.
+SELECT maintain_log_entries_partitions();
+
+COMMIT;

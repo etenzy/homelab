@@ -6,6 +6,6 @@ Requires=postgresql.service
 
 [Service]
 Type=oneshot
-User=blocky
-ExecStart=/usr/bin/psql -d {{ blocky_db }} -v ON_ERROR_STOP=1 \
+User={{ blocky_partitions_owner }}
+ExecStart=/usr/bin/psql -d {{ blocky_partitions_db }} -v ON_ERROR_STOP=1 \
   -c "SELECT maintain_log_entries_partitions();"

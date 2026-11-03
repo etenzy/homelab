@@ -9,7 +9,7 @@ vault_postgresql_passwords:
   mroedel: CHANGE_ME
 
 # Blocky query log: entries whose question_name matches one of these LIKE
-# patterns are deleted by blocky-purge-domains.timer (window: blocky_purge_window,
+# patterns are deleted by blocky-purge-domains.timer (window: blocky_purge_domains_window,
 # default 4 hours). "%" = any characters. Empty or missing: no purge SQL, timer off.
 vault_blocky_purge_patterns:
   - "%example%"           # substring

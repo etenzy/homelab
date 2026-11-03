@@ -1,0 +1,29 @@
+---
+# Weekly range partitions of blocky's query log (log_entries) in PostgreSQL:
+# maintenance function maintain_log_entries_partitions() plus a daily timer.
+# Runs after blocky; the database and its owner role come from
+# postgresql_databases/_users.
+blocky_partitions_db: blocky
+# Owns the table, the partitions and the function; the timer runs as this user.
+blocky_partitions_owner: blocky
+blocky_partitions_sql_dir: /usr/local/lib/blocky
+# Weeks created ahead and retention (whole weekly partitions are dropped). The
+# daily timer calls the function without arguments, so these are its defaults.
+blocky_partitions_premake: 4
+blocky_partitions_retention: 1 year
+# Storage parameters set on every partition (a partitioned parent cannot carry
+# them). Keys are PostgreSQL table storage parameters; {} sets none.
+blocky_partitions_reloptions:
+  autovacuum_vacuum_insert_scale_factor: 0.05
+  autovacuum_vacuum_scale_factor: 0.02
+  autovacuum_analyze_scale_factor: 0.01
+# Trigram index on question_name for LIKE '%...%' searches (needs pg_trgm).
+blocky_partitions_trgm: true
+# Migrate a plain log_entries table (blocky's AutoMigrate) once, in one
+# transaction. Rows older than the retention are not copied.
+blocky_partitions_migrate: true
+# Keep the old table as log_entries_unpartitioned instead of dropping it.
+blocky_partitions_migrate_keep_old: false
+# blocky's inserts wait while the migration holds the lock; give up if the
+# lock cannot be taken in time (rerun the playbook later).
+blocky_partitions_migrate_lock_timeout: 10s
