@@ -1,4 +1,4 @@
-# Generated Cilium values; networking retained, Hubble settings match shared source.
+# Generated Cilium values; MTU matches the Talos bootstrap values.
 ---
 MTU: 9000
 ipv4:
@@ -13,6 +13,8 @@ k8sServiceHost: localhost
 k8sServicePort: 7445
 routingMode: tunnel
 tunnelProtocol: vxlan
+enableIPv4Masquerade: true
+enableMasqueradeRouteSource: false
 bgpControlPlane:
   enabled: true
 l2announcements:
@@ -41,14 +43,6 @@ securityContext:
       - NET_ADMIN
       - SYS_ADMIN
       - SYS_RESOURCE
-k8s:
-  requireIPv4PodCIDR: true
-  requireIPv6PodCIDR: true
-ipv6NativeRoutingCIDR: fd00:10:244::/56
-enableIPv6Masquerade: true
-enableMasqueradeRouteSource: true
-bpf:
-  masquerade: false
 hubble:
   enabled: true
   tls:
@@ -101,3 +95,10 @@ hubble:
       enabled: false
     dynamic:
       enabled: false
+k8s:
+  requireIPv4PodCIDR: true
+  requireIPv6PodCIDR: true
+ipv6NativeRoutingCIDR: fd00:10:244::/56
+enableIPv6Masquerade: true
+bpf:
+  masquerade: false
