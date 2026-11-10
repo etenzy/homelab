@@ -1,0 +1,51 @@
+# Generated from control-plane node names and static IPv4 addresses.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitoring-kube-etcd
+  namespace: kube-system
+  labels:
+    k8s.rdl.sh/metrics-target: etcd
+    jobLabel: kube-etcd
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+    - name: http-metrics
+      port: 2381
+      targetPort: 2381
+      protocol: TCP
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: monitoring-kube-etcd-ipv4
+  namespace: kube-system
+  labels:
+    kubernetes.io/service-name: monitoring-kube-etcd
+    endpointslice.kubernetes.io/managed-by: gitops.k8s.rdl.sh
+addressType: IPv4
+ports:
+  - name: http-metrics
+    port: 2381
+    protocol: TCP
+endpoints:
+  - addresses:
+      - 10.73.20.11
+    nodeName: cp-pi-01
+    conditions:
+      ready: true
+  - addresses:
+      - 10.73.20.12
+    nodeName: cp-pi-02
+    conditions:
+      ready: true
+  - addresses:
+      - 10.73.20.13
+    nodeName: cp-pi-03
+    conditions:
+      ready: true

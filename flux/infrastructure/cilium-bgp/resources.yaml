@@ -1,0 +1,77 @@
+# Generated from the validated machine and BGP inventories.
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: unifi-loadbalancers
+spec:
+  blocks:
+    - cidr: 10.73.21.0/24
+    - cidr: fd00:10:73:21::/64
+  allowFirstLastIPs: 'No'
+  serviceSelector:
+    matchLabels:
+      network.k8s.rdl.sh/bgp: 'true'
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: unifi-peer
+spec:
+  families:
+    - afi: ipv4
+      safi: unicast
+      advertisements:
+        matchLabels:
+          k8s.rdl.sh/advertisement: unifi-loadbalancers
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: unifi-peer-ipv6
+spec:
+  families:
+    - afi: ipv6
+      safi: unicast
+      advertisements:
+        matchLabels:
+          k8s.rdl.sh/advertisement: unifi-loadbalancers
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: unifi-loadbalancers
+  labels:
+    k8s.rdl.sh/advertisement: unifi-loadbalancers
+spec:
+  advertisements:
+    - advertisementType: Service
+      service:
+        addresses:
+          - LoadBalancerIP
+      selector:
+        matchLabels:
+          network.k8s.rdl.sh/bgp: 'true'
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPClusterConfig
+metadata:
+  name: unifi
+spec:
+  nodeSelector:
+    matchLabels:
+      network.k8s.rdl.sh/bgp: 'true'
+  bgpInstances:
+    - name: unifi
+      localASN: 65020
+      peers:
+        - name: udm-pro-max
+          peerASN: 65000
+          peerAddress: 10.73.20.1
+          peerConfigRef:
+            name: unifi-peer
+        - name: udm-pro-max-ipv6
+          peerASN: 65000
+          peerAddress: fd00:10:73:20::1
+          peerConfigRef:
+            name: unifi-peer-ipv6

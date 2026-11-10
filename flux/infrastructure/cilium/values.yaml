@@ -1,0 +1,103 @@
+# Generated Cilium values; networking retained, Hubble settings match shared source.
+---
+MTU: 9000
+ipv4:
+  enabled: true
+ipv6:
+  enabled: true
+underlayProtocol: ipv4
+ipam:
+  mode: kubernetes
+kubeProxyReplacement: true
+k8sServiceHost: localhost
+k8sServicePort: 7445
+routingMode: tunnel
+tunnelProtocol: vxlan
+bgpControlPlane:
+  enabled: true
+l2announcements:
+  enabled: false
+operator:
+  replicas: 2
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+k8s:
+  requireIPv4PodCIDR: true
+  requireIPv6PodCIDR: true
+ipv6NativeRoutingCIDR: fd00:10:244::/56
+enableIPv6Masquerade: true
+enableMasqueradeRouteSource: true
+bpf:
+  masquerade: false
+hubble:
+  enabled: true
+  tls:
+    enabled: true
+    auto:
+      enabled: true
+      method: helm
+  relay:
+    enabled: true
+    replicas: 1
+    nodeSelector:
+      k8s.rdl.sh/node-class: worker-pi
+    tolerations: []
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+    service:
+      type: ClusterIP
+  ui:
+    enabled: true
+    replicas: 1
+    nodeSelector:
+      k8s.rdl.sh/node-class: worker-pi
+    tolerations: []
+    backend:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    frontend:
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: false
+  metrics:
+    enabled: []
+  export:
+    static:
+      enabled: false
+    dynamic:
+      enabled: false

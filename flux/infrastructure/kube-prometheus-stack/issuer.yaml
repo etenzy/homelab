@@ -1,0 +1,8 @@
+# Internal webhook certificates do not use the public ACME issuers.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: prometheus-operator-selfsigned
+  namespace: monitoring
+spec:
+  selfSigned: {}

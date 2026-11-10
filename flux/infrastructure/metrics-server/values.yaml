@@ -1,0 +1,39 @@
+# Metrics Server values; internal TLS is renewed by cert-manager.
+---
+replicas: 1
+nodeSelector:
+  k8s.rdl.sh/node-class: worker-pi
+tolerations: []
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    memory: 512Mi
+defaultArgs:
+  - --cert-dir=/tmp
+  - --kubelet-preferred-address-types=InternalIP
+  - --kubelet-use-node-status-port
+  - --metric-resolution=15s
+args:
+  - --kubelet-certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+apiService:
+  insecureSkipTLSVerify: false
+tls:
+  type: cert-manager
+  certManager:
+    addInjectorAnnotations: true
+    existingIssuer:
+      enabled: false
+    duration: 2160h
+    renewBefore: 720h
+service:
+  type: ClusterIP
+hostNetwork:
+  enabled: false
+metrics:
+  enabled: false
+serviceMonitor:
+  enabled: false
+addonResizer:
+  enabled: false

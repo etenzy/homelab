@@ -1,0 +1,34 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: homelab
+  namespace: ingress
+spec:
+  gatewayClassName: homelab-envoy
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      # Application namespaces cannot attach clear-text routes here.
+      allowedRoutes:
+        namespaces:
+          from: Same
+        kinds:
+          - kind: HTTPRoute
+    - name: https
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: homelab-gateway-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              k8s.rdl.sh/gateway-access: "true"
+        kinds:
+          - kind: HTTPRoute

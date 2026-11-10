@@ -1,0 +1,78 @@
+# Addon metrics are discovered only after Prometheus Operator CRDs are ready.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: flux-controllers
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - flux-system
+  selector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - source-controller
+          - kustomize-controller
+          - helm-controller
+          - notification-controller
+  podMetricsEndpoints:
+    - port: http-prom
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: flux-operator
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - flux-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: flux-operator
+  podMetricsEndpoints:
+    - port: http-metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cert-manager
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - cert-manager
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: cert-manager
+  podMetricsEndpoints:
+    - port: http-metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy-gateway
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - envoy-gateway-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway-helm
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 30s

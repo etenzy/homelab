@@ -1,0 +1,44 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: homelab
+  namespace: ingress
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 2
+        container:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+        pod:
+          labels:
+            k8s.rdl.sh/gateway: homelab
+          nodeSelector:
+            k8s.rdl.sh/node-class: worker-pi
+          tolerations: []
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      k8s.rdl.sh/gateway: homelab
+                  topologyKey: kubernetes.io/hostname
+      envoyService:
+        type: LoadBalancer
+        externalTrafficPolicy: Cluster
+        allocateLoadBalancerNodePorts: false
+        # Both the existing Cilium IP pool and BGP advertisement select this label.
+        labels:
+          network.k8s.rdl.sh/bgp: "true"
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              # IPv4-only clusters fall back to one family; dual-stack gets both.
+              ipFamilyPolicy: PreferDualStack

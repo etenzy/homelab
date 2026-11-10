@@ -1,0 +1,59 @@
+# Install and retain the CRDs required by Certificates and ClusterIssuers.
+crds:
+  enabled: true
+  keep: true
+# ClusterIssuer DNS credentials and ACME account keys live in this namespace.
+clusterResourceNamespace: cert-manager
+replicaCount: 1
+nodeSelector:
+  k8s.rdl.sh/node-class: worker-pi
+tolerations: []
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+webhook:
+  replicaCount: 1
+  hostNetwork: false
+  nodeSelector:
+    k8s.rdl.sh/node-class: worker-pi
+  tolerations: []
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+cainjector:
+  enabled: true
+  replicaCount: 1
+  nodeSelector:
+    k8s.rdl.sh/node-class: worker-pi
+  tolerations: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+startupapicheck:
+  enabled: true
+  timeout: 2m
+  nodeSelector:
+    k8s.rdl.sh/node-class: worker-pi
+  tolerations: []
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+prometheus:
+  servicemonitor:
+    enabled: false

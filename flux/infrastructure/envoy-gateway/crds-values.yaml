@@ -1,0 +1,7 @@
+# This release is the only owner of Gateway API and Envoy Gateway CRDs.
+crds:
+  gatewayAPI:
+    enabled: true
+    channel: standard
+  envoyGateway:
+    enabled: true

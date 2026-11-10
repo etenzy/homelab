@@ -1,0 +1,20 @@
+# Fill the public DNS zone before resuming the listeners Flux Kustomization.
+# Start with staging; switch to production after a successful DNS-01 test.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: homelab-gateway-tls
+  namespace: ingress
+spec:
+  secretName: homelab-gateway-tls
+  duration: 2160h
+  renewBefore: 720h
+  privateKey:
+    rotationPolicy: Always
+  dnsNames:
+    - REPLACE_PUBLIC_DNS_ZONE
+    - "*.REPLACE_PUBLIC_DNS_ZONE"
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: letsencrypt-staging
