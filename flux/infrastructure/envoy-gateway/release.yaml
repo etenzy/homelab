@@ -14,8 +14,6 @@ spec:
         kind: HelmRepository
         name: envoyproxy
         namespace: flux-system
-  dependsOn:
-    - name: envoy-gateway-crds
   install:
     crds: Skip
     remediation:

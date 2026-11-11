@@ -170,10 +170,6 @@ spec:
   healthChecks:
     - apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease
-      name: envoy-gateway-crds
-      namespace: envoy-gateway-system
-    - apiVersion: helm.toolkit.fluxcd.io/v2
-      kind: HelmRelease
       name: envoy-gateway
       namespace: envoy-gateway-system
 ---
