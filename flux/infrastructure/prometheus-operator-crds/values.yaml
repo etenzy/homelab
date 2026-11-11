@@ -1,4 +1,4 @@
-# Install before Cilium and Flux Operator; this chart contains CRDs only.
+# Flux installs these CRDs before enabling native monitors in its chart upgrades.
 # Keep its version aligned with the Prometheus Operator in kube-prometheus-stack.
 crds:
   annotations:

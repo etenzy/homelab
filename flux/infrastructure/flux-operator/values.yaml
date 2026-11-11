@@ -8,7 +8,7 @@ tolerations:
 # Run the operator without the optional web UI.
 web:
   enabled: false
-# Prometheus monitor CRDs are installed before this bootstrap release.
+# GitOps HelmRelease waits for monitoring CRDs before enabling this monitor.
 serviceMonitor:
   create: true
   labels:

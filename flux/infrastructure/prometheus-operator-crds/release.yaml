@@ -6,6 +6,7 @@ metadata:
 spec:
   interval: 10m
   timeout: 5m
+  # Flux installs this CRD-only release before enabling native chart monitors.
   chart:
     spec:
       chart: prometheus-operator-crds

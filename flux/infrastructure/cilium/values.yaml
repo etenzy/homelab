@@ -1,4 +1,4 @@
-# Generated Cilium values; MTU matches the Talos bootstrap values.
+# Generated GitOps Cilium values; monitors require the early CRD release.
 ---
 MTU: 9000
 ipv4:
