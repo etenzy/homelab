@@ -1,0 +1,14 @@
+# Install OpenEBS Local PV LVM first. Install only the LVM engine, not Mayastor.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: high-io
+provisioner: local.csi.openebs.io
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+parameters:
+  storage: lvm
+  vgpattern: "^vg-nvme-(system|data)$"
+  fsType: ext4
+  thinProvision: "no"

@@ -1,0 +1,54 @@
+# Standalone LVM engine; Talos provisions the underlying volume groups.
+fullnameOverride: openebs-lvm
+storageCapacity: true
+analytics:
+  enabled: false
+global:
+  analytics:
+    enabled: false
+lvmNode:
+  # Only workers with the prepared NVMe VGs run the privileged node plugin.
+  nodeSelector:
+    storage.k8s.rdl.sh/nvme: "true"
+  tolerations: []
+  kubeletDir: /var/lib/kubelet/
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  # The chart applies these resources to each of the two node containers.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 512Mi
+  # Monitoring CRDs arrive later; avoid a dependency on Prometheus here.
+  serviceMonitor:
+    enabled: false
+lvmController:
+  replicas: 2
+  nodeSelector:
+    k8s.rdl.sh/node-class: worker-pi
+  tolerations: []
+  # Leader election and required hostname anti-affinity are provided by the chart.
+  podAntiAffinity:
+    enabled: true
+  # The chart applies these resources to each controller container.
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      memory: 256Mi
+  # This fresh cluster has no other CSI snapshot controller.
+  snapshotController:
+    enabled: true
+crds:
+  lvmLocalPv:
+    enabled: true
+    keep: true
+  csi:
+    volumeSnapshots:
+      enabled: true
+      keep: true
