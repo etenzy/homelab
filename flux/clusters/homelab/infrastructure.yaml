@@ -232,7 +232,7 @@ spec:
     - apiVersion: gateway.networking.k8s.io/v1
       kind: Gateway
       current: >-
-        has(status) && has(status.conditions) &&
+        has(status.conditions) &&
         status.conditions.exists(c, c.type == 'Programmed' && c.status == 'True')
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
