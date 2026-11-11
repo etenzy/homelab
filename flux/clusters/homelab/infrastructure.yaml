@@ -1,4 +1,4 @@
----
+# Cilium is initially installed with Helm, then managed by this same release.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -8,6 +8,7 @@ spec:
   interval: 10m
   timeout: 10m
   path: ./flux/infrastructure/cilium
+  # Preserve the CNI if its files are accidentally removed from Git.
   prune: false
   sourceRef:
     kind: GitRepository
@@ -70,6 +71,7 @@ spec:
       name: flux-operator
       namespace: flux-system
 ---
+# Keep the certificate approver independent of metrics-server readiness.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -79,6 +81,7 @@ spec:
   interval: 10m
   timeout: 5m
   path: ./flux/infrastructure/kubelet-serving-cert-approver
+  # Preserve certificate renewal if this directory is accidentally removed.
   prune: false
   dependsOn:
     - name: cilium
@@ -123,6 +126,7 @@ spec:
   interval: 10m
   timeout: 10m
   path: ./flux/infrastructure/cert-manager
+  # Preserve the certificate controllers and CRDs after accidental Git removal.
   prune: false
   dependsOn:
     - name: cilium
@@ -150,59 +154,20 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+  # ACME readiness must not gate the internal metrics-server certificate.
   wait: true
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: envoy-gateway
+  name: gateway-certificates
   namespace: flux-system
 spec:
   interval: 10m
-  timeout: 10m
-  path: ./flux/infrastructure/envoy-gateway
+  timeout: 15m
+  path: ./flux/infrastructure/gateway-certificates
   prune: false
   dependsOn:
-    - name: cilium
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-  healthChecks:
-    - apiVersion: helm.toolkit.fluxcd.io/v2
-      kind: HelmRelease
-      name: envoy-gateway
-      namespace: envoy-gateway-system
----
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: envoy-gateway-config
-  namespace: flux-system
-spec:
-  interval: 10m
-  timeout: 5m
-  path: ./flux/infrastructure/envoy-gateway-config
-  prune: false
-  dependsOn:
-    - name: envoy-gateway
-    - name: cilium-bgp
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
----
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: envoy-gateway-listeners
-  namespace: flux-system
-spec:
-  suspend: true
-  interval: 10m
-  timeout: 10m
-  path: ./flux/infrastructure/envoy-gateway-listeners
-  prune: false
-  dependsOn:
-    - name: envoy-gateway-config
     - name: cert-manager-issuers
   sourceRef:
     kind: GitRepository
@@ -216,18 +181,102 @@ spec:
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
+  name: cilium-gateway
+  namespace: flux-system
+spec:
+  interval: 10m
+  timeout: 10m
+  path: ./flux/infrastructure/cilium-gateway
+  prune: false
+  dependsOn:
+    - name: cilium
+    - name: cilium-bgp
+    - name: gateway-certificates
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  healthChecks:
+    - apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      name: homelab-cilium
+      namespace: ingress
+  healthCheckExprs:
+    - apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      current: >-
+        has(status) && has(status.conditions) &&
+        status.conditions.exists(c, c.type == 'Programmed' && c.status == 'True')
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: grafana-route
+  namespace: flux-system
+spec:
+  interval: 10m
+  # Includes DNS-01 issuance of the annotation-generated application certificate.
+  timeout: 15m
+  path: ./flux/infrastructure/grafana-route
+  prune: false
+  # Check Grafana itself below; unrelated monitoring release failures must not
+  # block an otherwise healthy Grafana service from receiving its HTTPS route.
+  dependsOn:
+    - name: cilium-gateway
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: grafana
+      namespace: monitoring
+    # Created by cert-manager from ListenerSet annotations, not managed by Flux.
+    - apiVersion: cert-manager.io/v1
+      kind: Certificate
+      name: grafana-tls
+      namespace: monitoring
+    - apiVersion: gateway.networking.k8s.io/v1
+      kind: ListenerSet
+      name: grafana
+      namespace: monitoring
+    - apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      name: grafana
+      namespace: monitoring
+  healthCheckExprs:
+    - apiVersion: gateway.networking.k8s.io/v1
+      kind: ListenerSet
+      current: >-
+        has(status) && has(status.conditions) &&
+        status.conditions.exists(c, c.type == 'Accepted' && c.status == 'True') &&
+        status.conditions.exists(c, c.type == 'Programmed' && c.status == 'True')
+    - apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      current: >-
+        has(status) && has(status.parents) &&
+        status.parents.exists(p,
+          p.controllerName == 'io.cilium/gateway-controller' &&
+          has(p.conditions) &&
+          p.conditions.exists(c, c.type == 'Accepted' && c.status == 'True') &&
+          p.conditions.exists(c, c.type == 'ResolvedRefs' && c.status == 'True'))
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
   name: kube-prometheus-stack
   namespace: flux-system
 spec:
   interval: 10m
   timeout: 20m
   path: ./flux/infrastructure/kube-prometheus-stack
+  # Preserve monitoring data/controllers after accidental Git removal.
   prune: false
   dependsOn:
     - name: cilium
     - name: cert-manager
     - name: kubelet-serving-cert-approver
     - name: storage-namespaces
+    - name: storage-classes
   sourceRef:
     kind: GitRepository
     name: flux-system

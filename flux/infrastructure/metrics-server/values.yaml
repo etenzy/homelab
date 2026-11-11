@@ -1,5 +1,4 @@
-# Metrics Server values; internal TLS is renewed by cert-manager.
----
+# One cluster-wide collector; it scrapes control-plane and worker kubelets.
 replicas: 1
 nodeSelector:
   k8s.rdl.sh/node-class: worker-pi
@@ -10,16 +9,22 @@ resources:
     memory: 200Mi
   limits:
     memory: 512Mi
+
 defaultArgs:
   - --cert-dir=/tmp
+  # Use stable node identities rather than dynamic GUA addresses or external DNS.
   - --kubelet-preferred-address-types=InternalIP
   - --kubelet-use-node-status-port
   - --metric-resolution=15s
 args:
+  # The approver enables cluster-CA-signed kubelet serving certificates.
   - --kubelet-certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+# Verify the API aggregation connection as well as the kubelet scrape connection.
 apiService:
   insecureSkipTLSVerify: false
 tls:
+  # Internal service DNS names use the chart's dedicated SelfSigned Issuer.
   type: cert-manager
   certManager:
     addInjectorAnnotations: true
@@ -27,13 +32,17 @@ tls:
       enabled: false
     duration: 2160h
     renewBefore: 720h
+
 service:
   type: ClusterIP
 hostNetwork:
   enabled: false
 metrics:
+  # In this chart, true exempts /metrics from authorization. Keep it protected;
+  # monitoring-extras scrapes with Prometheus's projected service-account token.
   enabled: false
 serviceMonitor:
+  # The chart hard-codes insecureSkipVerify; use the verified custom monitor.
   enabled: false
 addonResizer:
   enabled: false

@@ -1,15 +1,25 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: homelab
+  name: homelab-cilium
   namespace: ingress
 spec:
-  gatewayClassName: homelab-envoy
+  gatewayClassName: homelab-cilium
+  infrastructure:
+    # Inherited by Cilium's generated Service: select the existing IPAM/BGP policies.
+    labels:
+      network.k8s.rdl.sh/bgp: "true"
+  # Delegate application TLS listeners to explicitly enabled namespaces.
+  allowedListeners:
+    namespaces:
+      from: Selector
+      selector:
+        matchLabels:
+          k8s.rdl.sh/gateway-access: "true"
   listeners:
     - name: http
       port: 80
       protocol: HTTP
-      # Application namespaces cannot attach clear-text routes here.
       allowedRoutes:
         namespaces:
           from: Same
@@ -18,6 +28,7 @@ spec:
     - name: https
       port: 443
       protocol: HTTPS
+      # No hostname: this is the shared default TLS listener for other services.
       tls:
         mode: Terminate
         certificateRefs:

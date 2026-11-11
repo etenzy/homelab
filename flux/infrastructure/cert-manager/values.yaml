@@ -4,6 +4,16 @@ crds:
   keep: true
 # ClusterIssuer DNS credentials and ACME account keys live in this namespace.
 clusterResourceNamespace: cert-manager
+# Generate application Certificates from annotated Gateway API ListenerSets.
+# ListenerSet is a Standard API; cert-manager's annotation integration is alpha.
+config:
+  apiVersion: controller.config.cert-manager.io/v1alpha1
+  kind: ControllerConfiguration
+  gatewayAPI:
+    enabled: true
+    enableListenerSet: true
+  featureGates:
+    ListenerSets: true
 replicaCount: 1
 nodeSelector:
   k8s.rdl.sh/node-class: worker-pi

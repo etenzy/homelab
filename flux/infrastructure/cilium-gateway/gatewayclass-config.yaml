@@ -1,0 +1,11 @@
+apiVersion: cilium.io/v2alpha1
+kind: CiliumGatewayClassConfig
+metadata:
+  name: homelab
+  namespace: ingress
+spec:
+  service:
+    type: LoadBalancer
+    externalTrafficPolicy: Cluster
+    ipFamilyPolicy: PreferDualStack
+    allocateLoadBalancerNodePorts: false

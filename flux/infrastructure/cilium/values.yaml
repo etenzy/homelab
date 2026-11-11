@@ -1,3 +1,4 @@
+# Generated Cilium values; MTU matches the Talos bootstrap values.
 ---
 MTU: 9000
 ipv4:
@@ -14,12 +15,27 @@ routingMode: tunnel
 tunnelProtocol: vxlan
 enableIPv4Masquerade: true
 enableMasqueradeRouteSource: false
+rollOutCiliumPods: true
+l7Proxy: true
+envoy:
+  enabled: true
+gatewayAPI:
+  enabled: true
+  gatewayClass:
+    create: false
+  hostNetwork:
+    enabled: false
+  secretsNamespace:
+    create: true
+    name: cilium-secrets
+    sync: true
 bgpControlPlane:
   enabled: true
 l2announcements:
   enabled: false
 operator:
   replicas: 2
+  rollOutPods: true
 cgroup:
   autoMount:
     enabled: false
@@ -101,4 +117,3 @@ ipv6NativeRoutingCIDR: fd00:10:244::/56
 enableIPv6Masquerade: true
 bpf:
   masquerade: false
-rollOutCiliumPods: true

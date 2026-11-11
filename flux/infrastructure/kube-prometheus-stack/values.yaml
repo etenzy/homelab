@@ -1,4 +1,4 @@
-# Generated monitoring values; cluster label comes from inventory.
+# Generated monitoring values; cluster label and Grafana URL come from inventory.
 ---
 fullnameOverride: monitoring
 crds:
@@ -57,6 +57,8 @@ kubelet:
     interval: 30s
     cAdvisorInterval: 30s
 prometheusOperator:
+  kubeletEndpointsEnabled: false
+  kubeletEndpointSliceEnabled: true
   nodeSelector:
     k8s.rdl.sh/node-class: worker-pi
   tolerations: []
@@ -86,8 +88,6 @@ prometheusOperator:
         memory: 32Mi
       limits:
         memory: 128Mi
-  kubeletEndpointsEnabled: false
-  kubeletEndpointSliceEnabled: true
 prometheus:
   ingress:
     enabled: false
@@ -96,6 +96,7 @@ prometheus:
   prometheusSpec:
     replicas: 1
     shards: 1
+    serviceDiscoveryRole: EndpointSlice
     nodeSelector:
       k8s.rdl.sh/node-class: worker-pi
     tolerations: []
@@ -133,7 +134,6 @@ prometheus:
               storage: 40Gi
     remoteWrite: []
     thanos: {}
-    serviceDiscoveryRole: EndpointSlice
 alertmanager:
   enabled: true
   ingress:
@@ -163,6 +163,21 @@ alertmanager:
 grafana:
   enabled: true
   fullnameOverride: grafana
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+    interval: 30s
+  grafana.ini:
+    server:
+      domain: grafana.k8s.home.rdl.sh
+      root_url: https://grafana.k8s.home.rdl.sh/
+    security:
+      cookie_secure: true
+    auth.anonymous:
+      enabled: false
+    metrics:
+      enabled: true
   replicas: 1
   deploymentStrategy:
     type: Recreate
@@ -189,6 +204,11 @@ grafana:
       limits:
         memory: 128Mi
   sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: '1'
+      searchNamespace: ALL
     resources:
       requests:
         cpu: 10m

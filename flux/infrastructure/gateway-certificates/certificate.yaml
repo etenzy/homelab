@@ -1,5 +1,5 @@
-# Fill the public DNS zone before resuming the listeners Flux Kustomization.
-# Start with staging; switch to production after a successful DNS-01 test.
+# Generated wildcard certificate from cluster.ingress.
+---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -12,9 +12,9 @@ spec:
   privateKey:
     rotationPolicy: Always
   dnsNames:
-    - REPLACE_PUBLIC_DNS_ZONE
-    - "*.REPLACE_PUBLIC_DNS_ZONE"
+    - k8s.home.rdl.sh
+    - '*.k8s.home.rdl.sh'
   issuerRef:
     group: cert-manager.io
     kind: ClusterIssuer
-    name: letsencrypt-staging
+    name: letsencrypt-production

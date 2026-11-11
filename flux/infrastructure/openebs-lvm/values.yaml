@@ -23,9 +23,11 @@ lvmNode:
       memory: 64Mi
     limits:
       memory: 512Mi
-  # Monitoring CRDs arrive later; avoid a dependency on Prometheus here.
+  # monitoring-extras creates the ServiceMonitor after the monitoring CRDs exist.
   serviceMonitor:
     enabled: false
+lvmPlugin:
+  metricsPort: 9500
 lvmController:
   replicas: 2
   nodeSelector:

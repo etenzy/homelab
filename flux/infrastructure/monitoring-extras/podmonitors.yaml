@@ -1,4 +1,5 @@
-# Addon metrics are discovered only after Prometheus Operator CRDs are ready.
+# Flux metrics are discovered after Prometheus Operator CRDs are ready.
+---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -39,40 +40,4 @@ spec:
       app.kubernetes.io/name: flux-operator
   podMetricsEndpoints:
     - port: http-metrics
-      interval: 30s
----
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  name: cert-manager
-  namespace: monitoring
-  labels:
-    release: kube-prometheus-stack
-spec:
-  namespaceSelector:
-    matchNames:
-      - cert-manager
-  selector:
-    matchLabels:
-      app.kubernetes.io/instance: cert-manager
-  podMetricsEndpoints:
-    - port: http-metrics
-      interval: 30s
----
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  name: envoy-gateway
-  namespace: monitoring
-  labels:
-    release: kube-prometheus-stack
-spec:
-  namespaceSelector:
-    matchNames:
-      - envoy-gateway-system
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: gateway-helm
-  podMetricsEndpoints:
-    - port: metrics
       interval: 30s
