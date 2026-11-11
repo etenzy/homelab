@@ -36,6 +36,8 @@ prometheus:
     interval: 30s
 dashboards:
   enabled: true
+  annotations:
+    grafana_folder: /tmp/dashboards/Cilium
 gatewayAPI:
   enabled: true
   gatewayClass:
@@ -55,6 +57,8 @@ operator:
   rollOutPods: true
   dashboards:
     enabled: true
+    annotations:
+      grafana_folder: /tmp/dashboards/Cilium
   prometheus:
     enabled: true
     metricsService: true
@@ -147,6 +151,8 @@ hubble:
       - httpV2
     dashboards:
       enabled: true
+      annotations:
+        grafana_folder: /tmp/dashboards/Hubble
     serviceMonitor:
       enabled: true
       labels:
