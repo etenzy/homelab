@@ -1,5 +1,39 @@
+---
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - podmonitors.yaml
   - servicemonitors.yaml
+configMapGenerator:
+  - name: grafana-dashboard-flux-performance
+    namespace: monitoring
+    files:
+      - dashboards/flux-performance.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+        app.kubernetes.io/part-of: homelab-monitoring
+  - name: grafana-dashboard-flux-k8s-api-performance
+    namespace: monitoring
+    files:
+      - dashboards/flux-k8s-api-performance.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+        app.kubernetes.io/part-of: homelab-monitoring
+  - name: grafana-dashboard-cert-manager-overview
+    namespace: monitoring
+    files:
+      - dashboards/cert-manager-overview.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+        app.kubernetes.io/part-of: homelab-monitoring
+  - name: grafana-dashboard-lvmlocalpv-pool
+    namespace: monitoring
+    files:
+      - dashboards/lvmlocalpv-pool.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+        app.kubernetes.io/part-of: homelab-monitoring
