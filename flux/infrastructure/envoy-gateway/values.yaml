@@ -1,6 +1,4 @@
 # CRDs are owned by the separate, readiness-gated CRD HelmRelease.
-crds:
-  enabled: false
 deployment:
   replicas: 1
   pod:
