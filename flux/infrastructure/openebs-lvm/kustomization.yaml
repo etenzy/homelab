@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - repository.yaml
   - release.yaml
+  - dashboards
 configMapGenerator:
   - name: openebs-lvm-values
     namespace: openebs

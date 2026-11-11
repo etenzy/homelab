@@ -272,6 +272,13 @@ grafana:
       label: grafana_dashboard
       labelValue: "1"
       searchNamespace: ALL
+      # Read each dashboard's target folder from its ConfigMap annotation.
+      folder: /tmp/dashboards
+      folderAnnotation: grafana_folder
+      annotations:
+        grafana_folder: /tmp/dashboards/kube-prometheus-stack
+      provider:
+        foldersFromFilesStructure: true
     resources:
       requests:
         cpu: 10m
