@@ -1,4 +1,4 @@
-# Flux metrics are discovered after Prometheus Operator CRDs are ready.
+# Existing monitor retained for a component without a chart-provided monitor.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -22,22 +22,4 @@ spec:
           - notification-controller
   podMetricsEndpoints:
     - port: http-prom
-      interval: 30s
----
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  name: flux-operator
-  namespace: monitoring
-  labels:
-    release: kube-prometheus-stack
-spec:
-  namespaceSelector:
-    matchNames:
-      - flux-system
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: flux-operator
-  podMetricsEndpoints:
-    - port: http-metrics
       interval: 30s

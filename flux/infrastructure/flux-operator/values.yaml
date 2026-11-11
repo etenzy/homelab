@@ -8,3 +8,10 @@ tolerations:
 # Run the operator without the optional web UI.
 web:
   enabled: false
+# Prometheus monitor CRDs are installed before this bootstrap release.
+serviceMonitor:
+  create: true
+  labels:
+    release: kube-prometheus-stack
+  interval: 30s
+  scrapeTimeout: 10s

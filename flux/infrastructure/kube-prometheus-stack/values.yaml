@@ -2,9 +2,7 @@
 ---
 fullnameOverride: monitoring
 crds:
-  enabled: true
-  upgradeJob:
-    enabled: false
+  enabled: false
 kubeControllerManager:
   enabled: true
   service:
@@ -163,6 +161,48 @@ alertmanager:
 grafana:
   enabled: true
   fullnameOverride: grafana
+  route:
+    main:
+      enabled: true
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      hostnames:
+        - grafana.k8s.home.rdl.sh
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: ListenerSet
+          name: grafana
+          sectionName: https
+  listenerSet:
+    main:
+      enabled: true
+      apiVersion: gateway.networking.k8s.io/v1
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-production
+        cert-manager.io/duration: 2160h
+        cert-manager.io/renew-before: 720h
+        cert-manager.io/private-key-rotation-policy: Always
+      parentRef:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: homelab-cilium
+        namespace: ingress
+      listeners:
+        - name: https
+          hostname: grafana.k8s.home.rdl.sh
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            certificateRefs:
+              - group: ''
+                kind: Secret
+                name: grafana-tls
+          allowedRoutes:
+            namespaces:
+              from: Same
+            kinds:
+              - kind: HTTPRoute
   serviceMonitor:
     enabled: true
     labels:

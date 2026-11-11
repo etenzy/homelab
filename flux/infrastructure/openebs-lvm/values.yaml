@@ -23,9 +23,11 @@ lvmNode:
       memory: 64Mi
     limits:
       memory: 512Mi
-  # monitoring-extras creates the ServiceMonitor after the monitoring CRDs exist.
+  # The native chart monitor can be created because CRDs are installed early.
   serviceMonitor:
-    enabled: false
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
 lvmPlugin:
   metricsPort: 9500
 lvmController:

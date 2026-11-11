@@ -9,17 +9,20 @@ spec:
   chart:
     spec:
       chart: kube-prometheus-stack
-      version: 93.1.2
+      version: 93.2.0
       sourceRef:
         kind: HelmRepository
-        name: kube-prometheus-stack
+        name: prometheus-community
         namespace: flux-system
   install:
-    crds: CreateReplace
+    disableTakeOwnership: false
+    crds: Skip
     remediation:
       retries: 3
   upgrade:
-    crds: CreateReplace
+    # Adopt the previously Flux-owned Grafana route and ListenerSet.
+    disableTakeOwnership: false
+    crds: Skip
     remediation:
       retries: 0
   valuesFrom:

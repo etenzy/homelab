@@ -6,9 +6,6 @@ metadata:
 spec:
   interval: 10m
   timeout: 10m
-  releaseName: metrics-server
-  targetNamespace: kube-system
-  storageNamespace: kube-system
   chart:
     spec:
       chart: metrics-server

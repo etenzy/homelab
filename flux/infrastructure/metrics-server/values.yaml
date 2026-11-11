@@ -38,11 +38,12 @@ service:
 hostNetwork:
   enabled: false
 metrics:
-  # In this chart, true exempts /metrics from authorization. Keep it protected;
-  # monitoring-extras scrapes with Prometheus's projected service-account token.
-  enabled: false
+  enabled: true
 serviceMonitor:
-  # The chart hard-codes insecureSkipVerify; use the verified custom monitor.
-  enabled: false
+  enabled: true
+  additionalLabels:
+    release: kube-prometheus-stack
+  interval: 30s
+  scrapeTimeout: 10s
 addonResizer:
   enabled: false

@@ -19,6 +19,23 @@ rollOutCiliumPods: true
 l7Proxy: true
 envoy:
   enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      labels:
+        release: kube-prometheus-stack
+      interval: 30s
+prometheus:
+  enabled: true
+  metricsService: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+    interval: 30s
+dashboards:
+  enabled: true
 gatewayAPI:
   enabled: true
   gatewayClass:
@@ -36,6 +53,16 @@ l2announcements:
 operator:
   replicas: 2
   rollOutPods: true
+  dashboards:
+    enabled: true
+  prometheus:
+    enabled: true
+    metricsService: true
+    serviceMonitor:
+      enabled: true
+      labels:
+        release: kube-prometheus-stack
+      interval: 30s
 cgroup:
   autoMount:
     enabled: false
@@ -67,6 +94,13 @@ hubble:
       method: helm
   relay:
     enabled: true
+    prometheus:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        labels:
+          release: kube-prometheus-stack
+        interval: 30s
     replicas: 1
     nodeSelector:
       k8s.rdl.sh/node-class: worker-pi
@@ -104,7 +138,20 @@ hubble:
     ingress:
       enabled: false
   metrics:
-    enabled: []
+    enabled:
+      - dns
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - httpV2
+    dashboards:
+      enabled: true
+    serviceMonitor:
+      enabled: true
+      labels:
+        release: kube-prometheus-stack
+      interval: 30s
   export:
     static:
       enabled: false

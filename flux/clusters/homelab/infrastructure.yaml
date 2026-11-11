@@ -1,3 +1,29 @@
+# CRD-only release: no CNI, monitoring workloads or storage dependencies.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prometheus-operator-crds
+  namespace: flux-system
+spec:
+  interval: 10m
+  timeout: 5m
+  path: ./flux/infrastructure/prometheus-operator-crds
+  prune: false
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: prometheus-operator-crds
+      namespace: kube-system
+    - apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      name: servicemonitors.monitoring.coreos.com
+    - apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      name: podmonitors.monitoring.coreos.com
+---
 # Cilium is initially installed with Helm, then managed by this same release.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -10,6 +36,8 @@ spec:
   path: ./flux/infrastructure/cilium
   # Preserve the CNI if its files are accidentally removed from Git.
   prune: false
+  dependsOn:
+    - name: prometheus-operator-crds
   sourceRef:
     kind: GitRepository
     name: flux-system
@@ -210,66 +238,12 @@ spec:
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: grafana-route
-  namespace: flux-system
-spec:
-  interval: 10m
-  # Includes DNS-01 issuance of the annotation-generated application certificate.
-  timeout: 15m
-  path: ./flux/infrastructure/grafana-route
-  prune: false
-  # Check Grafana itself below; unrelated monitoring release failures must not
-  # block an otherwise healthy Grafana service from receiving its HTTPS route.
-  dependsOn:
-    - name: cilium-gateway
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-  healthChecks:
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: grafana
-      namespace: monitoring
-    # Created by cert-manager from ListenerSet annotations, not managed by Flux.
-    - apiVersion: cert-manager.io/v1
-      kind: Certificate
-      name: grafana-tls
-      namespace: monitoring
-    - apiVersion: gateway.networking.k8s.io/v1
-      kind: ListenerSet
-      name: grafana
-      namespace: monitoring
-    - apiVersion: gateway.networking.k8s.io/v1
-      kind: HTTPRoute
-      name: grafana
-      namespace: monitoring
-  healthCheckExprs:
-    - apiVersion: gateway.networking.k8s.io/v1
-      kind: ListenerSet
-      current: >-
-        has(status) && has(status.conditions) &&
-        status.conditions.exists(c, c.type == 'Accepted' && c.status == 'True') &&
-        status.conditions.exists(c, c.type == 'Programmed' && c.status == 'True')
-    - apiVersion: gateway.networking.k8s.io/v1
-      kind: HTTPRoute
-      current: >-
-        has(status) && has(status.parents) &&
-        status.parents.exists(p,
-          p.controllerName == 'io.cilium/gateway-controller' &&
-          has(p.conditions) &&
-          p.conditions.exists(c, c.type == 'Accepted' && c.status == 'True') &&
-          p.conditions.exists(c, c.type == 'ResolvedRefs' && c.status == 'True'))
----
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
   name: kube-prometheus-stack
   namespace: flux-system
 spec:
   interval: 10m
   timeout: 20m
   path: ./flux/infrastructure/kube-prometheus-stack
-  # Preserve monitoring data/controllers after accidental Git removal.
   prune: false
   dependsOn:
     - name: cilium

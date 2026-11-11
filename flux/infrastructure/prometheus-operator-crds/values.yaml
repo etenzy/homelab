@@ -1,0 +1,5 @@
+# Install before Cilium and Flux Operator; this chart contains CRDs only.
+# Keep its version aligned with the Prometheus Operator in kube-prometheus-stack.
+crds:
+  annotations:
+    helm.sh/resource-policy: keep
