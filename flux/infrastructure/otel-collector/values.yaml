@@ -1,0 +1,90 @@
+# Generated observability values; cluster identity comes from inventory.
+---
+fullnameOverride: otel-collector
+mode: deployment
+replicaCount: 1
+image:
+  repository: otel/opentelemetry-collector-contrib
+command:
+  name: otelcol-contrib
+nodeSelector:
+  k8s.rdl.sh/node-class: worker-pi
+tolerations: []
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+extraEnvs:
+  - name: CLUSTER_NAME
+    value: homelab
+presets:
+  kubernetesAttributes:
+    enabled: true
+ports:
+  otlp:
+    hostPort: null
+  otlp-http:
+    hostPort: null
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+  metrics:
+    enabled: true
+serviceMonitor:
+  enabled: true
+  extraLabels:
+    release: kube-prometheus-stack
+config:
+  receivers:
+    jaeger: null
+    zipkin: null
+    prometheus: null
+  exporters:
+    debug: null
+    otlp/tempo:
+      endpoint: tempo.tracing.svc.cluster.local:4317
+      tls:
+        insecure: true
+      sending_queue:
+        enabled: true
+        queue_size: 10000
+      retry_on_failure:
+        enabled: true
+        max_elapsed_time: 0s
+  processors:
+    resource/cluster:
+      attributes:
+        - key: k8s.cluster.name
+          value: ${env:CLUSTER_NAME}
+          action: upsert
+  service:
+    pipelines:
+      logs: null
+      metrics: null
+      traces:
+        receivers:
+          - otlp
+        processors:
+          - memory_limiter
+          - k8sattributes
+          - resource/cluster
+          - batch
+        exporters:
+          - otlp/tempo

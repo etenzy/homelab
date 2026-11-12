@@ -156,6 +156,36 @@ alertmanager:
               storage: 2Gi
 grafana:
   enabled: true
+  additionalDataSources:
+    - name: Loki
+      uid: loki
+      type: loki
+      access: proxy
+      url: http://loki.logging.svc.cluster.local:3100
+      jsonData:
+        derivedFields:
+          - name: TraceID
+            matcherRegex: '"(?:trace_id|traceId)"\s*:\s*"([0-9a-fA-F]{32})"'
+            datasourceUid: tempo
+            url: $${__value.raw}
+            urlDisplayLabel: View trace
+    - name: Tempo
+      uid: tempo
+      type: tempo
+      access: proxy
+      url: http://tempo.tracing.svc.cluster.local:3200
+      jsonData:
+        tracesToLogsV2:
+          datasourceUid: loki
+          spanStartTimeShift: -1m
+          spanEndTimeShift: 1m
+          filterByTraceID: true
+          filterBySpanID: false
+          tags:
+            - key: k8s.namespace.name
+              value: namespace
+            - key: service.name
+              value: service_name
   defaultDashboardsEnabled: true
   fullnameOverride: grafana
   route:

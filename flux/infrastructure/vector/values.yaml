@@ -1,0 +1,162 @@
+# Generated observability values; cluster identity comes from inventory.
+---
+fullnameOverride: vector
+role: Agent
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+securityContext:
+  runAsUser: 0
+  runAsGroup: 0
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+env:
+  - name: CLUSTER_NAME
+    value: homelab
+defaultVolumes:
+  - name: pod-logs
+    hostPath:
+      path: /var/log/pods
+      type: Directory
+defaultVolumeMounts:
+  - name: pod-logs
+    mountPath: /var/log/pods
+    readOnly: true
+persistence:
+  hostPath:
+    enabled: true
+    path: /var/lib/vector
+service:
+  enabled: true
+  type: NodePort
+  externalTrafficPolicy: Local
+  ports:
+    - name: talos-logs
+      port: 6000
+      targetPort: 6000
+      nodePort: 30600
+      protocol: TCP
+serviceHeadless:
+  enabled: false
+containerPorts:
+  - name: talos-logs
+    containerPort: 6000
+    protocol: TCP
+  - name: prom-exporter
+    containerPort: 9090
+    protocol: TCP
+  - name: api
+    containerPort: 8686
+    protocol: TCP
+readinessProbe:
+  grpc:
+    port: 8686
+livenessProbe:
+  grpc:
+    port: 8686
+podMonitor:
+  enabled: true
+  additionalLabels:
+    release: kube-prometheus-stack
+customConfig:
+  data_dir: /vector-data-dir
+  api:
+    enabled: true
+    address: 0.0.0.0:8686
+  sources:
+    kubernetes_logs:
+      type: kubernetes_logs
+    talos_logs:
+      type: socket
+      mode: tcp
+      address: 0.0.0.0:6000
+      framing:
+        method: newline_delimited
+      decoding:
+        codec: json
+    internal_metrics:
+      type: internal_metrics
+  transforms:
+    kubernetes_metadata:
+      type: remap
+      inputs:
+        - kubernetes_logs
+      source: |
+        .cluster = get_env_var!("CLUSTER_NAME")
+        .log_source = "kubernetes"
+        .namespace = string(.kubernetes.pod_namespace) ?? "unknown"
+        .node = string(.kubernetes.pod_node_name) ?? "unknown"
+        .container = string(.kubernetes.container_name) ?? "unknown"
+        .service_name = string(.kubernetes.pod_labels."app.kubernetes.io/name") ?? string(.kubernetes.pod_labels.app) ?? .container
+        .pod = string(.kubernetes.pod_name) ?? ""
+        .pod_uid = string(.kubernetes.pod_uid) ?? ""
+        .trace_id = ""
+        parsed, error = parse_json(.message)
+        if error == null && is_object(parsed) {
+          .app = parsed
+          .trace_id = string(parsed.trace_id) ?? string(parsed.traceId) ?? ""
+        }
+        del(.kubernetes.pod_annotations)
+    talos_metadata:
+      type: remap
+      inputs:
+        - talos_logs
+      source: |
+        .cluster = get_env_var!("CLUSTER_NAME")
+        .log_source = "talos"
+        .namespace = "talos"
+        .node = string(.talos_node) ?? "unknown"
+        .container = string(."talos-service") ?? "talos"
+        .service_name = .container
+        .message = string(.msg) ?? ""
+        .level = string(."talos-level") ?? "info"
+        event_time, error = parse_timestamp(."talos-time", format: "%+")
+        if error == null {
+          .timestamp = event_time
+        }
+        .pod = ""
+        .pod_uid = ""
+        .trace_id = ""
+  sinks:
+    loki:
+      type: loki
+      inputs:
+        - kubernetes_metadata
+        - talos_metadata
+      endpoint: http://loki.logging.svc.cluster.local:3100
+      encoding:
+        codec: json
+      labels:
+        cluster: '{{ "{{ cluster }}" }}'
+        source: '{{ "{{ log_source }}" }}'
+        namespace: '{{ "{{ namespace }}" }}'
+        service_name: '{{ "{{ service_name }}" }}'
+        container: '{{ "{{ container }}" }}'
+        node: '{{ "{{ node }}" }}'
+      structured_metadata:
+        pod: '{{ "{{ pod }}" }}'
+        pod_uid: '{{ "{{ pod_uid }}" }}'
+        trace_id: '{{ "{{ trace_id }}" }}'
+      buffer:
+        type: disk
+        max_size: 1073741824
+        when_full: block
+    prometheus_exporter:
+      type: prometheus_exporter
+      inputs:
+        - internal_metrics
+      address: 0.0.0.0:9090

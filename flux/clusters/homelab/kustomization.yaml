@@ -4,3 +4,4 @@ resources:
   - flux-system
   - infrastructure.yaml
   - storage.yaml
+  - observability.yaml

@@ -1,0 +1,49 @@
+fullnameOverride: tempo
+replicas: 1
+nodeSelector:
+  k8s.rdl.sh/node-class: worker-pi
+tolerations: []
+tempo:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  retention: 72h
+  # Start without remote-write metrics or additional trace-derived time series.
+  metricsGenerator:
+    enabled: false
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+persistence:
+  enabled: true
+  enableStatefulSetAutoDeletePVC: false
+  storageClassName: high-io
+  size: 20Gi
+service:
+  type: ClusterIP
+serviceMonitor:
+  enabled: true
+  additionalLabels:
+    release: kube-prometheus-stack

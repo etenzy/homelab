@@ -1,0 +1,82 @@
+# Generated observability values; cluster identity comes from inventory.
+---
+fullnameOverride: loki
+deploymentMode: Monolithic
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: '2024-04-01'
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+  limits_config:
+    retention_period: 168h
+    allow_structured_metadata: true
+  compactor:
+    working_directory: /var/loki/compactor
+    retention_enabled: true
+    delete_request_store: filesystem
+  querier:
+    max_concurrent: 2
+  ingester:
+    wal:
+      dir: /var/loki/wal
+singleBinary:
+  replicas: 1
+  nodeSelector:
+    k8s.rdl.sh/node-class: worker-pi
+  tolerations: []
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  persistence:
+    enabled: true
+    storageClass: high-io
+    size: 40Gi
+    enableStatefulSetAutoDeletePVC: false
+  sidecar: false
+  podDisruptionBudget:
+    enabled: false
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+gateway:
+  enabled: false
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+monitoring:
+  multiCluster:
+    enabled: true
+    clusterName: homelab
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+  rules:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+  dashboards:
+    enabled: true
+    annotations:
+      grafana_folder: /tmp/dashboards/Loki
