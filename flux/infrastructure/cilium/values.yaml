@@ -29,6 +29,8 @@ envoy:
 prometheus:
   enabled: true
   metricsService: true
+  metrics:
+    - +cilium_bpf_syscall_duration_seconds
   serviceMonitor:
     enabled: true
     labels:
@@ -144,11 +146,12 @@ hubble:
   metrics:
     enabled:
       - dns:sourceContext=namespace;destinationContext=namespace;labelsContext=source_namespace,destination_namespace
-      - drop
+      - drop:sourceContext=namespace;destinationContext=namespace;labelsContext=source_namespace,destination_namespace
       - tcp
-      - flow
+      - flow:sourceContext=namespace;destinationContext=namespace;labelsContext=source_namespace,destination_namespace
+      - port-distribution
       - icmp
-      - httpV2
+      - httpV2:sourceContext=workload-name;destinationContext=workload-name;labelsContext=source_namespace,source_workload,destination_namespace,destination_workload
     dashboards:
       enabled: true
       annotations:
