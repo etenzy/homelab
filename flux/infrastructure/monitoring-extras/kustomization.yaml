@@ -4,3 +4,59 @@ kind: Kustomization
 resources:
   - podmonitors.yaml
   - servicemonitors.yaml
+
+configMapGenerator:
+  - name: k8s-system-api-server
+    namespace: monitoring
+    files:
+      - https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-system-api-server.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+      annotations:
+        grafana_folder: /tmp/dashboards/modern-kubernetes-dashboards
+  - name: k8s-system-coredns
+    namespace: monitoring
+    files:
+      - https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-system-coredns.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+      annotations:
+        grafana_folder: /tmp/dashboards/modern-kubernetes-dashboards
+  - name: kk8s-views-global
+    namespace: monitoring
+    files:
+      - https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-global.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+      annotations:
+        grafana_folder: /tmp/dashboards/modern-kubernetes-dashboards
+  - name: k8s-views-namespaces
+    namespace: monitoring
+    files:
+      - https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-namespaces.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+      annotations:
+        grafana_folder: /tmp/dashboards/modern-kubernetes-dashboards
+  - name: k8s-views-nodes
+    namespace: monitoring
+    files:
+      - https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-nodes.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+      annotations:
+        grafana_folder: /tmp/dashboards/modern-kubernetes-dashboards
+  - name: k8s-views-pods
+    namespace: monitoring
+    files:
+      - https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-pods.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+      annotations:
+        grafana_folder: /tmp/dashboards/modern-kubernetes-dashboards
