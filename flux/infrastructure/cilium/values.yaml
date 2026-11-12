@@ -25,7 +25,6 @@ envoy:
       enabled: true
       labels:
         release: kube-prometheus-stack
-      interval: 30s
 prometheus:
   enabled: true
   metricsService: true
@@ -35,7 +34,6 @@ prometheus:
     enabled: true
     labels:
       release: kube-prometheus-stack
-    interval: 30s
 dashboards:
   enabled: true
   annotations:
@@ -68,7 +66,6 @@ operator:
       enabled: true
       labels:
         release: kube-prometheus-stack
-      interval: 30s
 cgroup:
   autoMount:
     enabled: false
@@ -106,7 +103,6 @@ hubble:
         enabled: true
         labels:
           release: kube-prometheus-stack
-        interval: 30s
     replicas: 1
     nodeSelector:
       k8s.rdl.sh/node-class: worker-pi
@@ -160,7 +156,6 @@ hubble:
       enabled: true
       labels:
         release: kube-prometheus-stack
-      interval: 30s
   export:
     static:
       enabled: false

@@ -13,5 +13,4 @@ serviceMonitor:
   create: true
   labels:
     release: kube-prometheus-stack
-  interval: 30s
   scrapeTimeout: 10s

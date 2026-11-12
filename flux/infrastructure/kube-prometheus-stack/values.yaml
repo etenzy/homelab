@@ -1,11 +1,8 @@
-# Prerequisite: OpenEBS Local PV LVM and the high-io StorageClass must be ready.
+# Generated monitoring values; cluster label and Grafana URL come from inventory.
+---
 fullnameOverride: monitoring
 crds:
-  # The early prometheus-operator-crds Helm release owns schema installation.
   enabled: false
-
-# generate.py opens these endpoints only on control-plane nodes, with a
-# source-restricted Talos ingress rule. Scrapes use stable IPv4 node addresses.
 kubeControllerManager:
   enabled: true
   service:
@@ -13,8 +10,6 @@ kubeControllerManager:
     targetPort: 10257
   serviceMonitor:
     https: true
-    # Talos leaves the component's automatically generated self-signed serving
-    # certificate in place. Bearer authentication/RBAC remain enabled.
     tlsConfig:
       insecureSkipVerify: true
 kubeScheduler:
@@ -24,13 +19,10 @@ kubeScheduler:
     targetPort: 10259
   serviceMonitor:
     https: true
-    # This exception applies only to this self-signed component endpoint.
     tlsConfig:
       insecureSkipVerify: true
 kubeEtcd:
   enabled: true
-  # Talos runs etcd as a host service, not a discoverable static Pod.
-  # The generated selectorless Service and EndpointSlice replace this Service.
   service:
     enabled: false
   serviceMonitor:
@@ -39,9 +31,7 @@ kubeEtcd:
     selector:
       matchLabels:
         k8s.rdl.sh/metrics-target: etcd
-    # Never send a Kubernetes bearer token to the unauthenticated HTTP endpoint.
     authorization: null
-# kube-proxy is disabled because Cilium replaces it.
 kubeProxy:
   enabled: false
 defaultRules:
@@ -54,21 +44,15 @@ defaultRules:
     windows: false
 windowsMonitoring:
   enabled: false
-
 kubelet:
   serviceMonitor:
-    # The existing serving-certificate approver provides cluster-signed certs.
     tlsConfig:
       insecureSkipVerify: false
       ca:
         configMap:
           name: kube-root-ca.crt
           key: ca.crt
-    interval: 30s
-    cAdvisorInterval: 30s
-
 prometheusOperator:
-  # Publish kubelet slices as well, matching Prometheus discovery below.
   kubeletEndpointsEnabled: false
   kubeletEndpointSliceEnabled: true
   nodeSelector:
@@ -100,7 +84,6 @@ prometheusOperator:
         memory: 32Mi
       limits:
         memory: 128Mi
-
 prometheus:
   ingress:
     enabled: false
@@ -114,12 +97,8 @@ prometheus:
       k8s.rdl.sh/node-class: worker-pi
     tolerations: []
     externalLabels:
-      # prepare_gitops.py replaces this with cluster.name from the inventory.
       cluster: homelab
-    scrapeInterval: 30s
-    evaluationInterval: 30s
     retention: 7d
-    # Leave capacity for the WAL, head block and compaction in the 40Gi PVC.
     retentionSize: 30GB
     walCompression: true
     resources:
@@ -149,7 +128,6 @@ prometheus:
               storage: 40Gi
     remoteWrite: []
     thanos: {}
-
 alertmanager:
   enabled: true
   ingress:
@@ -176,13 +154,10 @@ alertmanager:
           resources:
             requests:
               storage: 2Gi
-
 grafana:
   enabled: true
-  # Keep the bundled Kubernetes, node, storage and Prometheus dashboards enabled.
   defaultDashboardsEnabled: true
   fullnameOverride: grafana
-  # Use the Grafana subchart's native Gateway API resources.
   route:
     main:
       enabled: true
@@ -201,8 +176,8 @@ grafana:
       apiVersion: gateway.networking.k8s.io/v1
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-production
-        cert-manager.io/duration: "2160h"
-        cert-manager.io/renew-before: "720h"
+        cert-manager.io/duration: 2160h
+        cert-manager.io/renew-before: 720h
         cert-manager.io/private-key-rotation-policy: Always
       parentRef:
         group: gateway.networking.k8s.io
@@ -217,7 +192,7 @@ grafana:
           tls:
             mode: Terminate
             certificateRefs:
-              - group: ""
+              - group: ''
                 kind: Secret
                 name: grafana-tls
           allowedRoutes:
@@ -229,8 +204,6 @@ grafana:
     enabled: true
     labels:
       release: kube-prometheus-stack
-    interval: 30s
-  # prepare_gitops.py replaces these public URL settings from cluster.ingress.
   grafana.ini:
     server:
       domain: grafana.k8s.home.rdl.sh
@@ -270,9 +243,8 @@ grafana:
     dashboards:
       enabled: true
       label: grafana_dashboard
-      labelValue: "1"
+      labelValue: '1'
       searchNamespace: ALL
-      # Read each dashboard's target folder from its ConfigMap annotation.
       folder: /tmp/dashboards
       folderAnnotation: grafana_folder
       annotations:
@@ -289,7 +261,6 @@ grafana:
     type: ClusterIP
   ingress:
     enabled: false
-
 kube-state-metrics:
   fullnameOverride: kube-state-metrics
   nodeSelector:
@@ -301,10 +272,8 @@ kube-state-metrics:
       memory: 64Mi
     limits:
       memory: 256Mi
-
 prometheus-node-exporter:
   fullnameOverride: node-exporter
-  # Run on every Linux node, including the tainted control-plane Pis.
   nodeSelector:
     kubernetes.io/os: linux
   tolerations:
@@ -315,7 +284,6 @@ prometheus-node-exporter:
   hostPID: true
   hostRootFsMount:
     enabled: true
-    # Avoid assuming the Talos host root is a shared/slave mount.
     mountPropagation: None
   resources:
     requests:
@@ -323,6 +291,5 @@ prometheus-node-exporter:
       memory: 64Mi
     limits:
       memory: 256Mi
-
 thanosRuler:
   enabled: false

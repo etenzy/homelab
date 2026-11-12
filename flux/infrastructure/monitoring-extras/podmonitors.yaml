@@ -22,4 +22,4 @@ spec:
           - notification-controller
   podMetricsEndpoints:
     - port: http-prom
-      interval: 30s
+      # Inherit the Prometheus global scrape interval.

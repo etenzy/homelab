@@ -13,7 +13,7 @@ resources:
 defaultArgs:
   - --cert-dir=/tmp
   # Use stable node identities rather than dynamic GUA addresses or external DNS.
-  - --kubelet-preferred-address-types=InternalIP
+  - --kubelet-preferred-address-types=InternalIP,Hostname
   - --kubelet-use-node-status-port
   - --metric-resolution=15s
 args:
@@ -38,12 +38,13 @@ service:
 hostNetwork:
   enabled: false
 metrics:
+  # The native chart permits metric scrapes on its cluster-internal HTTPS port.
   enabled: true
 serviceMonitor:
+  # Retain the chart's insecureSkipVerify setting for this metrics endpoint.
   enabled: true
   additionalLabels:
     release: kube-prometheus-stack
-  interval: 30s
   scrapeTimeout: 10s
 addonResizer:
   enabled: false
