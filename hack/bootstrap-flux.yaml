@@ -1,0 +1,310 @@
+# Publish this credential-free bootstrap manifest at a pinned raw URL for Talos.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flux-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: helm-controller
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: helm-controller
+  annotations:
+    meta.helm.sh/release-name: flux
+    meta.helm.sh/release-namespace: flux-system
+  namespace: flux-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-reconciler
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    meta.helm.sh/release-name: flux
+    meta.helm.sh/release-namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: kustomize-controller
+    namespace: flux-system
+  - kind: ServiceAccount
+    name: helm-controller
+    namespace: flux-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flux-values
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    reconcile.fluxcd.io/watch: Enabled
+  annotations:
+    meta.helm.sh/release-name: flux
+    meta.helm.sh/release-namespace: flux-system
+  namespace: flux-system
+data:
+  values.yaml: |
+    crds:
+      annotations:
+        helm.sh/resource-policy: keep
+
+    cli:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+    helmController:
+      replicas: 2
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 97
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: helm-controller
+                topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+    imageAutomationController:
+      replicas: 2
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 20m
+          memory: 64Mi
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 97
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: image-automation-controller
+                topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+    imageReflectionController:
+      replicas: 2
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 20m
+          memory: 64Mi
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 97
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: image-reflector-controller
+                topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+    kustomizeController:
+      replicas: 2
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 100Mi
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 97
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: kustomize-controller
+                topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+    notificationController:
+      replicas: 2
+      resources:
+        limits:
+          cpu: 50m
+          memory: 64Mi
+        requests:
+          cpu: 10m
+          memory: 32Mi
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 97
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: notification-controller
+                topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+    sourceController:
+      resources:
+        limits:
+          cpu: 150m
+          memory: 128Mi
+        requests:
+          cpu: 50m
+          memory: 32Mi
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+    sourceWatcher:
+      resources:
+        limits:
+          cpu: 50m
+          memory: 64Mi
+        requests:
+          cpu: 10m
+          memory: 32Mi
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
+    prometheus:
+      podMonitor:
+        create: false
+        additionalLabels:
+          release: kube-prometheus-stack
+  sync.yaml: |
+    apiVersion: source.toolkit.fluxcd.io/v1
+    kind: GitRepository
+    metadata:
+      name: flux-system
+      namespace: flux-system
+      annotations:
+        kustomize.toolkit.fluxcd.io/prune: disabled
+    spec:
+      interval: 1m
+      url: ssh://git@github.com/etenzy/homelab.git
+      ref:
+        branch: main
+      secretRef:
+        name: flux-github
+    ---
+    apiVersion: kustomize.toolkit.fluxcd.io/v1
+    kind: Kustomization
+    metadata:
+      name: flux-system
+      namespace: flux-system
+      annotations:
+        kustomize.toolkit.fluxcd.io/prune: disabled
+    spec:
+      interval: 10m
+      timeout: 10m
+      path: ./flux/clusters/homelab
+      prune: true
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+      decryption:
+        provider: sops
+        secretRef:
+          name: sops-age
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: flux-installer
+  namespace: flux-system
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ''
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      restartPolicy: Never
+      serviceAccountName: helm-controller
+      containers:
+        - name: helm
+          image: alpine/k8s:1.36.5@sha256:094adf64cdc4827377cdbe7ea5747472ce115f9fbc64a4e35970ec66777f9a00
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              helm upgrade --install flux flux2 \
+                --namespace flux-system \
+                --repo https://fluxcd-community.github.io/helm-charts \
+                --version 2.20.0 \
+                --values /config/values.yaml \
+                --history-max 5 --wait --timeout 10m
+              kubectl apply --server-side --field-manager=kustomize-controller \
+                --filename /config/sync.yaml
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: flux-values

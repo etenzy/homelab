@@ -1,0 +1,30 @@
+# Discovered across namespaces by Grafana's native datasource sidecar.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-grafana-datasource
+  namespace: tracing
+  labels:
+    grafana_datasource: '1'
+data:
+  tempo-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo.tracing.svc.cluster.local:3200
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: -1m
+            spanEndTimeShift: 1m
+            filterByTraceID: true
+            filterBySpanID: false
+            tags:
+              - key: k8s.namespace.name
+                value: namespace
+              - key: service.name
+                value: service_name

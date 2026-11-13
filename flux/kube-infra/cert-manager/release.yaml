@@ -1,0 +1,28 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  interval: 10m
+  timeout: 10m
+  chartRef:
+    kind: OCIRepository
+    name: cert-manager
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 0
+  dependsOn:
+    - name: cilium
+      namespace: kube-system
+    - name: prometheus-operator-crds
+      namespace: kube-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: cert-manager-values
+      valuesKey: values.yaml

@@ -1,0 +1,8 @@
+# The dedicated application CA Secret is exported with pki/homelab_ca.py and SOPS.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: homelab-internal-ca
+spec:
+  ca:
+    secretName: homelab-intermediate-ca

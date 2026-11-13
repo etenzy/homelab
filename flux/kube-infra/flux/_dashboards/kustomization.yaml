@@ -1,0 +1,35 @@
+# Preserve the three official Flux dashboard URLs added locally by the user.
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+  - name: flux-cluster-stats
+    namespace: flux-system
+    files:
+      - https://raw.githubusercontent.com/fluxcd/flux2-monitoring-example/refs/heads/main/monitoring/configs/dashboards/cluster.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+        app.kubernetes.io/part-of: homelab-monitoring
+      annotations:
+        grafana_folder: /tmp/dashboards/Flux
+  - name: flux-control-plane
+    namespace: flux-system
+    files:
+      - https://raw.githubusercontent.com/fluxcd/flux2-monitoring-example/refs/heads/main/monitoring/configs/dashboards/control-plane.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+        app.kubernetes.io/part-of: homelab-monitoring
+      annotations:
+        grafana_folder: /tmp/dashboards/Flux
+  - name: flux-logs
+    namespace: flux-system
+    files:
+      - https://raw.githubusercontent.com/fluxcd/flux2-monitoring-example/refs/heads/main/monitoring/configs/dashboards/logs.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+        app.kubernetes.io/part-of: homelab-monitoring
+      annotations:
+        grafana_folder: /tmp/dashboards/Flux

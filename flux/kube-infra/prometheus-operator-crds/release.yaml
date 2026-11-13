@@ -1,0 +1,25 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus-operator-crds
+  namespace: kube-system
+spec:
+  interval: 10m
+  timeout: 5m
+  # Flux installs this CRD-only release before enabling native chart monitors.
+  chartRef:
+    kind: OCIRepository
+    name: prometheus-operator-crds
+  install:
+    # Transfer existing schemas from the former stack-managed CRD lifecycle.
+    disableTakeOwnership: false
+    remediation:
+      retries: 0
+  upgrade:
+    disableTakeOwnership: false
+    remediation:
+      retries: 0
+  valuesFrom:
+    - kind: ConfigMap
+      name: prometheus-operator-crds-values
+      valuesKey: values.yaml

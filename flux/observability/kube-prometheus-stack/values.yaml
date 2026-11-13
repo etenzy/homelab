@@ -1,0 +1,301 @@
+# Generated monitoring values; cluster label and Grafana URL come from inventory.
+---
+fullnameOverride: monitoring
+crds:
+  enabled: false
+kubeControllerManager:
+  enabled: true
+  service:
+    port: 10257
+    targetPort: 10257
+  serviceMonitor:
+    https: true
+    tlsConfig:
+      insecureSkipVerify: true
+kubeScheduler:
+  enabled: true
+  service:
+    port: 10259
+    targetPort: 10259
+  serviceMonitor:
+    https: true
+    tlsConfig:
+      insecureSkipVerify: true
+kubeEtcd:
+  enabled: true
+  service:
+    enabled: false
+  serviceMonitor:
+    scheme: http
+    port: http-metrics
+    selector:
+      matchLabels:
+        k8s.rdl.sh/metrics-target: etcd
+    authorization: null
+kubeProxy:
+  enabled: false
+defaultRules:
+  rules:
+    etcd: true
+    kubeControllerManager: true
+    kubeSchedulerAlerting: true
+    kubeSchedulerRecording: true
+    kubeProxy: false
+    windows: false
+windowsMonitoring:
+  enabled: false
+kubelet:
+  serviceMonitor:
+    tlsConfig:
+      insecureSkipVerify: false
+      ca:
+        configMap:
+          name: kube-root-ca.crt
+          key: ca.crt
+prometheusOperator:
+  kubeletEndpointsEnabled: false
+  kubeletEndpointSliceEnabled: true
+  nodeSelector:
+    k8s.rdl.sh/node-class: worker-pi
+  tolerations: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  admissionWebhooks:
+    enabled: true
+    patch:
+      enabled: false
+    certManager:
+      enabled: true
+      issuerRef:
+        name: prometheus-operator-selfsigned
+        kind: Issuer
+      admissionCert:
+        duration: 2160h
+      privateKey:
+        rotationPolicy: Always
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+prometheus:
+  ingress:
+    enabled: false
+  service:
+    type: ClusterIP
+  prometheusSpec:
+    replicas: 1
+    shards: 1
+    serviceDiscoveryRole: EndpointSlice
+    nodeSelector:
+      k8s.rdl.sh/node-class: worker-pi
+    tolerations: []
+    externalLabels:
+      cluster: homelab
+    retention: 7d
+    retentionSize: 30GB
+    walCompression: true
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        memory: 4Gi
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector:
+      matchLabels:
+        release: kube-prometheus-stack
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector:
+      matchLabels:
+        release: kube-prometheus-stack
+    podMonitorNamespaceSelector: {}
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: high-io
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 40Gi
+    remoteWrite: []
+    thanos: {}
+alertmanager:
+  enabled: true
+  ingress:
+    enabled: false
+  service:
+    type: ClusterIP
+  alertmanagerSpec:
+    replicas: 1
+    nodeSelector:
+      k8s.rdl.sh/node-class: worker-pi
+    tolerations: []
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: high-io
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+grafana:
+  enabled: true
+  defaultDashboardsEnabled: true
+  fullnameOverride: grafana
+  route:
+    main:
+      enabled: true
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      hostnames:
+        - grafana.k8s.home.rdl.sh
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: ListenerSet
+          name: grafana
+          sectionName: https
+  listenerSet:
+    main:
+      enabled: true
+      apiVersion: gateway.networking.k8s.io/v1
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-production
+        cert-manager.io/duration: 2160h
+        cert-manager.io/renew-before: 720h
+        cert-manager.io/private-key-rotation-policy: Always
+      parentRef:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: homelab-cilium
+        namespace: ingress
+      listeners:
+        - name: https
+          hostname: grafana.k8s.home.rdl.sh
+          port: 443
+          protocol: HTTPS
+          tls:
+            mode: Terminate
+            certificateRefs:
+              - group: ''
+                kind: Secret
+                name: grafana-tls
+          allowedRoutes:
+            namespaces:
+              from: Same
+            kinds:
+              - kind: HTTPRoute
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+  grafana.ini:
+    server:
+      domain: grafana.k8s.home.rdl.sh
+      root_url: https://grafana.k8s.home.rdl.sh/
+    security:
+      cookie_secure: true
+    auth.anonymous:
+      enabled: false
+    metrics:
+      enabled: true
+  replicas: 1
+  deploymentStrategy:
+    type: Recreate
+  nodeSelector:
+    k8s.rdl.sh/node-class: worker-pi
+  tolerations: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  persistence:
+    enabled: true
+    storageClassName: high-io
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+  initChownData:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  sidecar:
+    datasources:
+      enabled: true
+      label: grafana_datasource
+      labelValue: '1'
+      searchNamespace: ALL
+      resource: configmap
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: '1'
+      searchNamespace: ALL
+      folder: /tmp/dashboards
+      folderAnnotation: grafana_folder
+      annotations:
+        grafana_folder: /tmp/dashboards/kube-prometheus-stack
+      provider:
+        foldersFromFilesStructure: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+kube-state-metrics:
+  fullnameOverride: kube-state-metrics
+  nodeSelector:
+    k8s.rdl.sh/node-class: worker-pi
+  tolerations: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+prometheus-node-exporter:
+  fullnameOverride: node-exporter
+  nodeSelector:
+    kubernetes.io/os: linux
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  hostNetwork: true
+  hostPID: true
+  hostRootFsMount:
+    enabled: true
+    mountPropagation: None
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+thanosRuler:
+  enabled: false

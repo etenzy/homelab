@@ -1,0 +1,35 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openebs-lvm
+  namespace: openebs
+spec:
+  interval: 10m
+  timeout: 10m
+  chart:
+    spec:
+      chart: lvm-localpv
+      version: 1.10.1
+      sourceRef:
+        kind: HelmRepository
+        name: openebs-lvm
+        namespace: flux-system
+      interval: 1h
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    # Preserve an existing storage installation after a failed upgrade.
+    remediation:
+      retries: 0
+  dependsOn:
+    - name: cilium
+      namespace: kube-system
+    - name: prometheus-operator-crds
+      namespace: kube-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: openebs-lvm-values
+      valuesKey: values.yaml

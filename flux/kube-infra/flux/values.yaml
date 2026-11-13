@@ -1,0 +1,165 @@
+crds:
+  annotations:
+    helm.sh/resource-policy: keep
+
+cli:
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+helmController:
+  replicas: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 97
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: helm-controller
+            topologyKey: kubernetes.io/hostname
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+imageAutomationController:
+  replicas: 2
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 20m
+      memory: 64Mi
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 97
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: image-automation-controller
+            topologyKey: kubernetes.io/hostname
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+imageReflectionController:
+  replicas: 2
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 20m
+      memory: 64Mi
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 97
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: image-reflector-controller
+            topologyKey: kubernetes.io/hostname
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+kustomizeController:
+  replicas: 2
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 100Mi
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 97
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: kustomize-controller
+            topologyKey: kubernetes.io/hostname
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+notificationController:
+  replicas: 2
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 97
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: notification-controller
+            topologyKey: kubernetes.io/hostname
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+sourceController:
+  resources:
+    limits:
+      cpu: 150m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 32Mi
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+sourceWatcher:
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+prometheus:
+  podMonitor:
+    create: true
+    additionalLabels:
+      release: kube-prometheus-stack

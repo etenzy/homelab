@@ -1,0 +1,24 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: kube-infra-addons
+  namespace: flux-system
+spec:
+  interval: 10m
+  timeout: 15m
+  path: ./flux/kube-infra-addons
+  prune: false
+  dependsOn:
+    - name: kube-infra
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  healthChecks:
+    - apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      name: high-io
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age

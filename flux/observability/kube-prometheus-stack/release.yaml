@@ -1,0 +1,29 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: monitoring
+spec:
+  interval: 10m
+  timeout: 15m
+  chartRef:
+    kind: OCIRepository
+    name: kube-prometheus-stack
+  install:
+    disableTakeOwnership: false
+    crds: Skip
+    remediation:
+      retries: 3
+  upgrade:
+    # Adopt the previously Flux-owned Grafana route and ListenerSet.
+    disableTakeOwnership: false
+    crds: Skip
+    remediation:
+      retries: 0
+  dependsOn:
+    - name: prometheus-operator-crds
+      namespace: kube-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: kube-prometheus-stack-values
+      valuesKey: values.yaml

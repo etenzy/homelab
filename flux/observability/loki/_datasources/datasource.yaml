@@ -1,0 +1,25 @@
+# Discovered across namespaces by Grafana's native datasource sidecar.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-grafana-datasource
+  namespace: logging
+  labels:
+    grafana_datasource: '1'
+data:
+  loki-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki.logging.svc.cluster.local:3100
+        jsonData:
+          derivedFields:
+            - name: TraceID
+              matcherRegex: '"(?:trace_id|traceId)"\s*:\s*"([0-9a-fA-F]{32})"'
+              datasourceUid: tempo
+              url: $${__value.raw}
+              urlDisplayLabel: View trace

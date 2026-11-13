@@ -1,0 +1,17 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - repository.yaml
+  - release.yaml
+  - _datasources
+configMapGenerator:
+  - name: tempo-values
+    namespace: tracing
+    files:
+      - values.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
